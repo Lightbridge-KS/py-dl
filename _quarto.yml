@@ -1,0 +1,30 @@
+project:
+  type: book
+
+book:
+  title: "DL Python"
+  author: "Kittipos Sirivongrungson"
+  date: today
+  repo-url: https://github.com/Lightbridge-KS/py-dl
+  site-url: https://py-dl-lightbridge.netlify.app
+  chapters:
+    - index.qmd
+    - part: Tensor
+      chapters: 
+        - "contents/tensor/tensor-01-basic.ipynb"
+        - "contents/tensor/tensor-02-viz.ipynb"
+    - references.qmd
+
+
+format:
+  html:
+    theme:
+      light:
+      - cosmo
+      - brand
+      dark: 
+      - darkly
+    toc-depth: 4
+
+
+freeze: auto
