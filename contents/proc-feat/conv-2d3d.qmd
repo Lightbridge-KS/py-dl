@@ -1,0 +1,89 @@
+# 2D vs 3D Convolution
+
+Let’s go step by step with **radiographs (2D)** and **CT/MRI volumes (3D)**, showing how their tensors look in PyTorch and which layers they feed into.
+
+---
+
+### 🔹 1. Plain Radiograph (2D, e.g. chest X-ray)
+
+* Single grayscale image:
+  Shape = `(1, H, W)` → channel-first convention
+  Example: `(1, 512, 512)`
+
+* Batch of X-rays:
+  Shape = `(N, C, H, W)`
+  Example: `(32, 1, 512, 512)`
+
+```
+(N, C, H, W)
+   N = batch size (# of patients/images)
+   C = 1 (grayscale channel)
+   H = height (rows, e.g. 512)
+   W = width  (cols, e.g. 512)
+```
+
+**PyTorch layer → `nn.Conv2d`**
+
+```python
+import torch
+import torch.nn as nn
+
+x = torch.randn(32, 1, 512, 512)   # batch of X-rays
+conv2d = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3)
+y = conv2d(x)
+print(y.shape)  # (32, 16, 510, 510)
+```
+
+* ✅ Input shape: `(N, C, H, W)`
+* ✅ Uses `Conv2d`, `MaxPool2d`, etc.
+
+---
+
+### 🔹 2. CT/MRI Volume (3D stack of slices)
+
+* Single grayscale volume:
+  Shape = `(1, D, H, W)`
+  Example: `(1, 128, 512, 512)`
+
+* Batch of volumes:
+  Shape = `(N, C, D, H, W)`
+  Example: `(4, 1, 128, 512, 512)`
+
+```
+(N, C, D, H, W)
+   N = batch size (# of patients)
+   C = 1 (grayscale)
+   D = depth (# of slices)
+   H = height (rows, e.g. 512)
+   W = width  (cols, e.g. 512)
+```
+
+**PyTorch layer → `nn.Conv3d`**
+
+```python
+x = torch.randn(4, 1, 128, 512, 512)   # batch of CT/MRI volumes
+conv3d = nn.Conv3d(in_channels=1, out_channels=8, kernel_size=3)
+y = conv3d(x)
+print(y.shape)  # (4, 8, 126, 510, 510)
+```
+
+* ✅ Input shape: `(N, C, D, H, W)`
+* ✅ Uses `Conv3d`, `MaxPool3d`, etc.
+
+---
+
+### 🔹 Side-by-side Comparison
+
+| Modality    | Tensor Shape (batch) | PyTorch Layer |
+| ----------- | -------------------- | ------------- |
+| X-ray (2D)  | `(N, C, H, W)`       | `nn.Conv2d`   |
+| CT/MRI (3D) | `(N, C, D, H, W)`    | `nn.Conv3d`   |
+
+---
+
+📌 **Key rule of thumb:**
+
+* **2D images (radiographs, single slices)** → `(N, C, H, W)` → `Conv2d`
+* **3D volumes (CT/MRI stacks)** → `(N, C, D, H, W)` → `Conv3d`
+
+---

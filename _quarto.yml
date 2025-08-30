@@ -17,6 +17,9 @@ book:
         - "contents/tensor/tensor-00-anatomy.qmd"
         - "contents/tensor/tensor-01-basic.ipynb"
         - "contents/tensor/tensor-02-viz.ipynb"
+    - part: Feature Processing
+      chapters: 
+        - "contents/proc-feat/conv-2d3d.qmd"
     - part: AlexNet Layers
       chapters: 
         - "contents/alexnet-layers/01-conv2d.qmd"
