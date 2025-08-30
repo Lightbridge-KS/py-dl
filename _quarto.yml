@@ -14,6 +14,7 @@ book:
         - "contents/overview/pre_trained_networks.ipynb"
     - part: Tensor
       chapters: 
+        - "contents/tensor/tensor-00-anatomy.qmd"
         - "contents/tensor/tensor-01-basic.ipynb"
         - "contents/tensor/tensor-02-viz.ipynb"
     - part: AlexNet Layers

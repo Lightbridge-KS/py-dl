@@ -1,0 +1,141 @@
+# Tensor (Anatomy)
+
+**🔹 What is a Tensor?**
+
+A **tensor** is a generalization of scalars, vectors, and matrices into potentially higher dimensions.
+
+* **Scalar** → 0D tensor
+* **Vector** → 1D tensor
+* **Matrix** → 2D tensor
+* **Higher-order tensor** → 3D, 4D, … *n*-D
+
+Think of it as a **multi-dimensional array** that stores numbers (floats, ints, etc.).
+
+---
+
+## 🔹 Anatomy of a Tensor
+
+A tensor has several important attributes:
+
+### 1. **Rank (a.k.a. Number of Dimensions / Order)**
+
+* How many “axes” or dimensions the tensor has.
+* Examples:
+
+  * Scalar: rank = 0
+  * Vector: rank = 1
+  * Matrix: rank = 2
+  * RGB image (H×W×C): rank = 3
+
+In PyTorch:
+
+```python
+import torch
+x = torch.tensor([[1,2,3],[4,5,6]])
+print(x.dim())   # 2 → matrix
+```
+
+---
+
+### 2. **Shape**
+
+* A tuple describing the **size along each dimension**.
+* Example:
+
+  * Vector `[1,2,3]` → shape = `(3,)`
+  * Matrix `[[1,2,3],[4,5,6]]` → shape = `(2,3)`
+  * Batch of 32 RGB images, each 224×224 → shape = `(32, 3, 224, 224)`
+
+In PyTorch:
+
+```python
+print(x.shape)   # torch.Size([2, 3])
+```
+
+---
+
+### 3. **Size**
+
+* Sometimes used synonymously with shape.
+* In PyTorch, `x.size()` gives the same as `x.shape`.
+* Example: `(2,3)`
+
+---
+
+### 4. **Number of Elements**
+
+* Total count of values in the tensor.
+* Computed as the product of all dimensions.
+* Example: `(32, 3, 224, 224)` → `32×3×224×224 = 4,816,896` elements
+
+In PyTorch:
+
+```python
+print(x.numel())  # 6 elements
+```
+
+---
+
+### 5. **Data Type (dtype)**
+
+* Type of numbers stored: `float32`, `float64`, `int64`, etc.
+* Important for memory use & computation speed.
+* Example: neural nets usually use `float32`.
+
+```python
+print(x.dtype)  # torch.int64
+```
+
+---
+
+### 6. **Device**
+
+* Where the tensor lives: `CPU` or `GPU`.
+* Crucial in deep learning, since training needs to move tensors to GPU.
+
+```python
+print(x.device)  # cpu (default)
+```
+
+---
+
+### 7. **Stride (Advanced but Important)**
+
+* Describes **how many memory steps to jump** when moving along each dimension.
+* Lets PyTorch represent views (like transpose, slicing) efficiently **without copying data**.
+
+Example:
+
+```python
+x = torch.arange(6).reshape(2,3)
+print(x)
+print(x.stride())  # (3,1) → row-major memory layout
+```
+
+---
+
+# 🔹 Analogy
+
+Imagine a **spreadsheet of numbers**:
+
+* **Rank** → how many nested levels (cells, rows, tables, stacks of tables).
+* **Shape** → dimensions of the spreadsheet (rows × columns × …).
+* **Size / numel** → total number of cells.
+* **Dtype** → what kind of values are inside (ints, floats).
+* **Device** → which computer/machine the sheet is stored on.
+
+---
+
+✅ **Summary Table**
+
+| Concept    | Meaning                        | Example (Tensor with shape \[2,3]) |
+| ---------- | ------------------------------ | ---------------------------------- |
+| Rank / dim | # of axes                      | 2 (matrix)                         |
+| Shape      | Size per axis                  | (2,3)                              |
+| Size       | Same as shape                  | (2,3)                              |
+| Numel      | Total elements                 | 6                                  |
+| Dtype      | Data type of entries           | int64                              |
+| Device     | Where stored (CPU/GPU)         | cpu                                |
+| Stride     | Memory step between dimensions | (3,1)                              |
+
+---
