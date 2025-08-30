@@ -17,7 +17,7 @@ Think of it as a **multi-dimensional array** that stores numbers (floats, ints, 
 
 A tensor has several important attributes:
 
-### 1. **Rank (a.k.a. Number of Dimensions / Order)**
+### **Rank (a.k.a. Number of Dimensions / Order)**
 
 * How many “axes” or dimensions the tensor has.
 * Examples:
@@ -37,7 +37,7 @@ print(x.dim())   # 2 → matrix
 
 ---
 
-### 2. **Shape**
+### **Shape**
 
 * A tuple describing the **size along each dimension**.
 * Example:
@@ -54,7 +54,7 @@ print(x.shape)   # torch.Size([2, 3])
 
 ---
 
-### 3. **Size**
+### **Size**
 
 * Sometimes used synonymously with shape.
 * In PyTorch, `x.size()` gives the same as `x.shape`.
@@ -62,7 +62,7 @@ print(x.shape)   # torch.Size([2, 3])
 
 ---
 
-### 4. **Number of Elements**
+### **Number of Elements**
 
 * Total count of values in the tensor.
 * Computed as the product of all dimensions.
@@ -76,7 +76,7 @@ print(x.numel())  # 6 elements
 
 ---
 
-### 5. **Data Type (dtype)**
+### **Data Type (dtype)**
 
 * Type of numbers stored: `float32`, `float64`, `int64`, etc.
 * Important for memory use & computation speed.
@@ -88,7 +88,7 @@ print(x.dtype)  # torch.int64
 
 ---
 
-### 6. **Device**
+### **Device**
 
 * Where the tensor lives: `CPU` or `GPU`.
 * Crucial in deep learning, since training needs to move tensors to GPU.
@@ -99,7 +99,7 @@ print(x.device)  # cpu (default)
 
 ---
 
-### 7. **Stride (Advanced but Important)**
+### **Stride (Advanced but Important)**
 
 * Describes **how many memory steps to jump** when moving along each dimension.
 * Lets PyTorch represent views (like transpose, slicing) efficiently **without copying data**.
@@ -113,8 +113,6 @@ print(x.stride())  # (3,1) → row-major memory layout
 ```
 
 ---
-
-# 🔹 Analogy
 
 Imagine a **spreadsheet of numbers**:
 
@@ -139,3 +137,158 @@ Imagine a **spreadsheet of numbers**:
 | Stride     | Memory step between dimensions | (3,1)                              |
 
 ---
+
+
+Perfect — let’s anchor this to **medical imaging** examples you’ll see in practice. I’ll list the most common tensor shapes, explain what each dimension means, and then show **ASCII diagrams** so you can visualize them.
+
+---
+
+## 🔹 Common Tensor Shapes in Medical Imaging
+
+### **2D X-ray (single image)**
+
+* Shape: `(H, W)` (grayscale) or `(1, H, W)` if channel explicitly kept.
+* Example: `512 × 512`
+
+```
+[H x W]
++-----------------------------+
+|  pixel values (gray)        |
+|                             |
+|  512 rows × 512 columns     |
++-----------------------------+
+```
+
+If channels kept:
+
+```
+(1, H, W)
+Channel=1 (grayscale)
+```
+
+---
+
+### **Batch of X-rays**
+
+* Shape: `(N, 1, H, W)`
+* Example: `32 × 1 × 512 × 512`
+
+```
+(N, C, H, W)
++--------------------------------------+
+| Image 1: [1 x 512 x 512]             |
+| Image 2: [1 x 512 x 512]             |
+| ...                                  |
+| Image 32: [1 x 512 x 512]            |
++--------------------------------------+
+```
+
+* `N` = batch size
+* `C` = channel (1 for grayscale)
+* `H, W` = height × width
+
+---
+
+### **Color images (rare in radiology, but like dermatology photos)**
+
+* Shape: `(N, 3, H, W)`
+* Example: `16 × 3 × 224 × 224`
+
+```
+(N, C, H, W)
+   ├── Channel 0 (Red)
+   ├── Channel 1 (Green)
+   └── Channel 2 (Blue)
+```
+
+---
+
+### **3D Volumes (CT / MRI stack)**
+
+* Shape: `(D, H, W)` or `(1, D, H, W)`
+* Example: `128 × 512 × 512`
+
+```
+(D, H, W)
++----------------------------------+
+| Slice 1: [512 x 512]             |
+| Slice 2: [512 x 512]             |
+| ...                              |
+| Slice 128: [512 x 512]           |
++----------------------------------+
+```
+
+If channel included:
+
+```
+(1, D, H, W)   → grayscale
+(3, D, H, W)   → RGB (rare in CT/MRI)
+```
+
+---
+
+### **Batch of 3D Volumes**
+
+* Shape: `(N, 1, D, H, W)`
+* Example: `8 × 1 × 128 × 512 × 512`
+
+```
+(N, C, D, H, W)
++----------------------------------+
+| Volume 1: [1 x 128 x 512 x 512]  |
+| Volume 2: [1 x 128 x 512 x 512]  |
+| ...                              |
+| Volume 8: [1 x 128 x 512 x 512]  |
++----------------------------------+
+```
+
+---
+
+### **Segmentation Masks (label tensor)**
+
+* Usually same shape as the input (but integer dtype).
+* Example:
+
+  * CT volume: input `(1, D, H, W)`
+  * Mask: `(D, H, W)` or `(1, D, H, W)`
+
+```
+Each voxel value = class ID
+0 = background
+1 = tumor
+2 = organ, etc.
+```
+
+---
+
+### **Radiology Sequence (time series)**
+
+* e.g., Dynamic MRI (perfusion, fMRI), Ultrasound cine loops
+* Shape: `(T, H, W)` or `(N, T, H, W)`
+* Example: `30 × 256 × 256`
+
+```
+(T, H, W)
++----------------------------------+
+| Frame 1: [256 x 256]             |
+| Frame 2: [256 x 256]             |
+| ...                              |
+| Frame 30: [256 x 256]            |
++----------------------------------+
+```
+
+---
+
+✅ Summary Table for Medical Imaging
+
+| Modality           | Typical Tensor Shape (PyTorch style) | Example Shape           |
+| ------------------ | ------------------------------------ | ----------------------- |
+| 2D X-ray           | `(N, 1, H, W)`                       | `(32, 1, 512, 512)`     |
+| Color photo        | `(N, 3, H, W)`                       | `(16, 3, 224, 224)`     |
+| CT/MRI Volume      | `(N, 1, D, H, W)`                    | `(8, 1, 128, 512, 512)` |
+| Segmentation mask  | `(N, 1, D, H, W)` (int labels)       | `(8, 1, 128, 512, 512)` |
+| Cine/Perfusion MRI | `(N, T, H, W)`                       | `(4, 30, 256, 256)`     |
+
+---
+
+👉 Do you want me to also show how **different PyTorch layers expect these shapes** (e.g., `Conv2d` expects `(N, C, H, W)` vs `Conv3d` expects `(N, C, D, H, W)`)? That’s usually the next step after anatomy + shapes.
