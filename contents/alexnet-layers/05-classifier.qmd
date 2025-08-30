@@ -1,0 +1,291 @@
+# Classifier
+
+Perfect — now we’re at the **final block** of AlexNet:
+
+```python
+(classifier): Sequential(
+    (0): Dropout(p=0.5, inplace=False)
+    (1): Linear(in_features=9216, out_features=4096, bias=True)
+    (2): ReLU(inplace=True)
+    (3): Dropout(p=0.5, inplace=False)
+    (4): Linear(in_features=4096, out_features=4096, bias=True)
+    (5): ReLU(inplace=True)
+    (6): Linear(in_features=4096, out_features=1000, bias=True)
+)
+```
+
+## Overview
+
+This is the **fully connected classification head**. Let’s break it down:
+
+---
+
+###  Step 1 — Flattening input
+
+From the `(avgpool)` block we get:
+
+```
+(N, 256, 6, 6)
+```
+
+Flatten:
+
+```
+(N, 256*6*6) = (N, 9216)
+```
+
+So each image is now represented by a **9216-dimensional feature vector**.
+
+---
+
+###  Step 2 — Layer by layer
+
+#### (0) `Dropout(p=0.5)`
+
+* Randomly sets **50% of features to zero** during training.
+* Prevents **overfitting** by forcing the network not to rely on any single neuron.
+* At inference time, dropout is turned off.
+
+---
+
+#### (1) `Linear(9216 → 4096)`
+
+* Fully connected (dense) layer.
+* Maps the high-dimensional image feature vector into a hidden representation of size **4096**.
+* This is AlexNet’s first **big dense layer**.
+
+Shape:
+
+```
+(N, 9216) → (N, 4096)
+```
+
+---
+
+#### (2) `ReLU`
+
+* Applies non-linearity elementwise (`max(0, x)`).
+
+---
+
+#### (3) `Dropout(p=0.5)`
+
+* Again drops 50% of activations.
+* Two dropout layers in AlexNet were one of the key tricks that helped reduce overfitting on ImageNet.
+
+---
+
+#### (4) `Linear(4096 → 4096)`
+
+* Another fully connected hidden layer.
+* Keeps representation at 4096 dimensions.
+* Increases model **capacity** to learn high-level patterns.
+
+Shape:
+
+```
+(N, 4096) → (N, 4096)
+```
+
+---
+
+#### (5) `ReLU`
+
+* Non-linearity again.
+
+---
+
+#### (6) `Linear(4096 → 1000)`
+
+* Final dense layer.
+* Outputs raw **logits** for 1000 classes in ImageNet.
+* Each number corresponds to one class score.
+
+Shape:
+
+```
+(N, 1000)
+```
+
+---
+
+###  Intuition
+
+Think of this block as the **decision-making head** of AlexNet:
+
+* `(features)` + `(avgpool)` → “extracts features” (like describing shapes, textures, patterns).
+* `(classifier)` → “decides the class” (is it a dog? a car? a cat?).
+
+It’s exactly like:
+
+```
+Features (9216 numbers) → Dense(4096) → Dense(4096) → Dense(1000)
+```
+
+with Dropout + ReLU in between to improve generalization and non-linearity.
+
+---
+
+###  Why such huge fully connected layers?
+
+* At the time (2012), GPU memory allowed relatively big dense layers (4096).
+* Dropout was new, so researchers used very wide FC layers and regularized them heavily.
+* Later CNNs (VGG, ResNet) shifted toward fewer FC layers or global average pooling.
+
+---
+
+ So in short:
+
+* **Input**: 9216 features (flattened CNN output)
+* **Hidden**: 2 large fully connected layers (4096 each, with dropout + ReLU)
+* **Output**: 1000 logits (ImageNet classes)
+
+---
+
+## Q&A
+
+### **Q: Flattening `(N, 256, 6, 6)` → `(N, 9216)`**
+
+* After `(avgpool)`, the tensor shape is:
+
+  ```
+  (N, C, H, W) = (N, 256, 6, 6)
+  ```
+
+  where
+
+  * `N` = batch size
+  * `C=256` feature maps
+  * `H=W=6` spatial size
+
+* To feed into a `Linear` layer, PyTorch expects a **2D tensor**: `(N, features)`.
+
+* Flattening means:
+
+  ```
+  256 channels × 6 height × 6 width = 9216
+  ```
+
+  So each image is represented by a **9216-length vector**.
+
+👉 Example (per sample):
+
+```
+Feature map 1:  6x6 → flatten → 36 values
+Feature map 2:  6x6 → flatten → 36 values
+...
+Feature map 256:6x6 → flatten → 36 values
+-----------------------------------------
+Concatenate → 256 * 36 = 9216 numbers
+```
+
+Shape becomes:
+
+```
+(N, 256, 6, 6) → (N, 9216)
+```
+
+---
+
+### **Q: Why `Linear(...)` is called “fully connected”? What is `bias`?**
+
+#### Fully connected
+
+* In a **Linear (a.k.a. dense, fully connected)** layer:
+
+  ```
+  y = Wx + b
+  ```
+
+  * `W` is a weight matrix of shape `(out_features, in_features)`
+  * Every output neuron connects to **every input feature**.
+  * Contrast this with **Conv2d**, where each neuron only connects to a **local patch**.
+
+That’s why it’s called *fully connected*: each neuron “sees” the entire previous layer’s activations.
+
+---
+
+#### Bias parameter
+
+* The equation is:
+
+  $$
+  y_j = \sum_i W_{j,i} x_i + b_j
+  $$
+* `b_j` = bias term for the j-th output neuron.
+* It lets the neuron “shift” the activation function left/right, giving flexibility.
+
+👉 Analogy:
+Without bias, all neurons must pass through the origin (0).
+With bias, each neuron can have its own offset → richer representations.
+
+---
+
+### **Q: Logits → Probabilities**
+
+* The last `Linear(4096 → 1000)` outputs **1000 raw numbers per sample**:
+
+  ```
+  (N, 1000)
+  ```
+
+  These are called **logits**.
+
+* To convert logits → probabilities, we use the **softmax** function:
+
+  $$
+  p_j = \frac{e^{z_j}}{\sum_{k=1}^{1000} e^{z_k}}
+  $$
+
+  where
+
+  * $z_j$ = logit for class j
+  * denominator = sum of exponentials across all classes
+
+* Properties:
+
+  * All probabilities ∈ (0,1)
+  * Sum of all = 1
+  * The largest logit becomes the highest probability.
+
+---
+
+
+Suppose final logits for 3 classes are:
+
+```
+[2.0, 1.0, 0.1]
+```
+
+Exponentiate:
+
+```
+exp = [7.39, 2.71, 1.10]
+```
+
+Normalize:
+
+```
+[7.39/11.2, 2.71/11.2, 1.10/11.2]
+≈ [0.66, 0.24, 0.10]
+```
+
+👉 Model’s predicted probability distribution.
+
+During inference:
+
+* `argmax(probabilities)` gives the predicted class.
+* In PyTorch:
+
+  ```python
+  probs = torch.softmax(logits, dim=1)
+  pred  = torch.argmax(probs, dim=1)
+  ```
+
+---
+
+✅ **Summary**
+
+1. Flatten: `(256,6,6) → 9216` because we concatenate all channel maps into one vector.
+2. `Linear` = fully connected because every output neuron connects to every input feature; `bias` shifts activations.
+3. Final logits are converted to probabilities via **softmax**, and classification is done with **argmax**.

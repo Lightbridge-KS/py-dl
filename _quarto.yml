@@ -9,6 +9,9 @@ book:
   site-url: https://py-dl-lightbridge.netlify.app
   chapters:
     - index.qmd
+    - part: Intro
+      chapters: 
+        - "contents/overview/pre_trained_networks.ipynb"
     - part: Tensor
       chapters: 
         - "contents/tensor/tensor-01-basic.ipynb"
@@ -19,6 +22,8 @@ book:
         - "contents/alexnet-layers/02-MaxPool2d.qmd"
         - "contents/alexnet-layers/03-features.qmd"
         - "contents/alexnet-layers/04-avgpool.qmd"
+        - "contents/alexnet-layers/05-classifier.qmd"
+        - "contents/alexnet-layers/06-alexnet-params.qmd"
     - references.qmd
 
 

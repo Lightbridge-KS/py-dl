@@ -1,0 +1,102 @@
+# AlexNet Parameters & Hyperparameters
+
+You’re now zooming in on the **core distinction between parameters and hyperparameters in deep learning**.
+Let’s sort them out in the context of AlexNet.
+
+---
+
+## 🔹 Model **parameters** (learned during training)
+
+👉 These are the values updated by backpropagation + optimizer when training on data.
+
+1. **Weights (kernels) of Conv2d layers**
+
+   * e.g. `Conv2d(3, 64, kernel=11, stride=4, padding=2)`
+   * Learnable tensor shape: `(out_channels, in_channels, kernel_h, kernel_w)`
+   * Example: `(64, 3, 11, 11)` = **23,232 parameters** just for the first conv.
+
+2. **Biases of Conv2d layers** (if `bias=True`)
+
+   * One bias per output channel.
+   * E.g., first conv: 64 bias terms.
+
+3. **Weights of Linear (fully connected) layers**
+
+   * Shape: `(out_features, in_features)`
+   * Example: `Linear(9216 → 4096)` = **37,748,736 parameters** (plus 4096 biases).
+
+4. **Biases of Linear layers**
+
+   * One per neuron, e.g. 4096 biases in first FC.
+
+👉 **All Conv and Linear weights + biases** are the learnable model parameters.
+
+⚡ Note: **ReLU, MaxPool, Dropout, AdaptiveAvgPool** → have **no learnable parameters** (they are fixed operations).
+
+---
+
+## 🔹 Model **hyperparameters** (set by us, not learned)
+
+These control the **structure of the network** and the **training process**. They’re not updated by gradient descent.
+
+From the AlexNet definition:
+
+#### Architectural hyperparameters
+
+* **Conv2d**
+
+  * `kernel_size=(11,11)`, `(5,5)`, `(3,3)`
+  * `stride=(4,4)` or `(1,1)`
+  * `padding=(2,2)` or `(1,1)`
+  * `out_channels=64, 192, 384, 256`
+* **MaxPool2d**
+
+  * `kernel_size=3`, `stride=2`
+  * `padding=0`
+* **Dropout**
+
+  * `p=0.5` (dropout probability)
+* **AdaptiveAvgPool2d**
+
+  * `output_size=(6,6)`
+* **Linear**
+
+  * `in_features` (fixed by previous layer), `out_features=4096, 1000`
+
+#### Training hyperparameters (not shown in architecture, but crucial)
+
+* Learning rate (e.g. 0.01)
+* Optimizer choice (SGD, Adam, etc.)
+* Batch size (e.g. 128)
+* Number of epochs
+* Weight decay / momentum
+
+👉 Hyperparameters are chosen by the practitioner, sometimes tuned (grid search, random search, Bayesian opt, etc.).
+
+---
+
+## 🔹 Visual separation
+
+```
+Learned Parameters (updated during training):
+   - Conv2d weights + biases
+   - Linear weights + biases
+
+Fixed Hyperparameters (set by you):
+   - Kernel sizes, strides, paddings
+   - Number of channels (64, 192, 384, 256…)
+   - Dropout rate (0.5)
+   - Pooling output size (6x6)
+   - Optimizer config (LR, momentum, etc.)
+```
+
+---
+
+✅ **Summary**
+
+* **Parameters** = the actual **numbers inside weights/biases** of Conv and Linear layers — learned from data.
+* **Hyperparameters** = architectural choices (layer sizes, kernel sizes, dropout %) and training settings (LR, optimizer, epochs) — you set them manually.
+
+---
+
+👉 Would you like me to also **compute the total number of parameters in AlexNet** layer by layer (Conv + Linear), so you see how huge it is?
