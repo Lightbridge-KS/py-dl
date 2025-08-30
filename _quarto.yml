@@ -13,10 +13,11 @@ book:
       chapters: 
         - "contents/tensor/tensor-01-basic.ipynb"
         - "contents/tensor/tensor-02-viz.ipynb"
-    - part: Layers
+    - part: AlexNet Layers
       chapters: 
-        - "contents/layers/conv2d.qmd"
-        - "contents/layers/MaxPool2d.qmd"
+        - "contents/alexnet-layers/01-conv2d.qmd"
+        - "contents/alexnet-layers/02-MaxPool2d.qmd"
+        - "contents/alexnet-layers/03-features.qmd"
     - references.qmd
 
 

@@ -1,0 +1,205 @@
+# Features (Sequential)
+
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** What is the output shape of these Sequential(...) layer in AlexNet? 
+:::
+
+Perfect question — let’s trace the **output shapes** through AlexNet’s
+
+```python
+(features): Sequential(...)
+```
+
+block.
+We’ll assume the standard ImageNet input: **(N, 3, 224, 224)** where
+
+* `N` = batch size
+* `3` = RGB channels
+* `224×224` = image size
+
+---
+
+## 🔹 Step-by-step shape evolution
+
+Input
+
+```
+(N, 3, 224, 224)
+```
+
+---
+
+#### (0) Conv2d(3 → 64, kernel=11, stride=4, pad=2)
+
+Formula:
+
+$$
+\text{out} = \left\lfloor \frac{W - K + 2P}{S} \right\rfloor + 1
+$$
+
+$$
+\frac{224 - 11 + 2*2}{4} + 1 = \frac{217}{4} + 1 = 54 + 1 = 55
+$$
+
+Shape:
+
+```
+(N, 64, 55, 55)
+```
+
+---
+
+#### (1) ReLU
+
+* No shape change.
+
+```
+(N, 64, 55, 55)
+```
+
+---
+
+#### (2) MaxPool2d(kernel=3, stride=2)
+
+$$
+\frac{55 - 3}{2} + 1 = 26 + 1 = 27
+$$
+
+Shape:
+
+```
+(N, 64, 27, 27)
+```
+
+---
+
+#### (3) Conv2d(64 → 192, kernel=5, stride=1, pad=2)
+
+$$
+\frac{27 - 5 + 2*2}{1} + 1 = 27
+$$
+
+Shape:
+
+```
+(N, 192, 27, 27)
+```
+
+---
+
+#### (4) ReLU
+
+```
+(N, 192, 27, 27)
+```
+
+---
+
+#### (5) MaxPool2d(kernel=3, stride=2)
+
+$$
+\frac{27 - 3}{2} + 1 = 13
+$$
+
+Shape:
+
+```
+(N, 192, 13, 13)
+```
+
+---
+
+#### (6) Conv2d(192 → 384, kernel=3, stride=1, pad=1)
+
+$$
+\frac{13 - 3 + 2*1}{1} + 1 = 13
+$$
+
+Shape:
+
+```
+(N, 384, 13, 13)
+```
+
+---
+
+#### (7) ReLU
+
+```
+(N, 384, 13, 13)
+```
+
+---
+
+#### (8) Conv2d(384 → 256, kernel=3, stride=1, pad=1)
+
+```
+(N, 256, 13, 13)
+```
+
+---
+
+#### (9) ReLU
+
+```
+(N, 256, 13, 13)
+```
+
+---
+
+#### (10) Conv2d(256 → 256, kernel=3, stride=1, pad=1)
+
+```
+(N, 256, 13, 13)
+```
+
+---
+
+#### (11) ReLU
+
+```
+(N, 256, 13, 13)
+```
+
+---
+
+#### (12) MaxPool2d(kernel=3, stride=2)
+
+$$
+\frac{13 - 3}{2} + 1 = 6
+$$
+
+Final shape after `(features)`:
+
+```
+(N, 256, 6, 6)
+```
+
+---
+
+### 🔹 Intuition
+
+* The **channels** grow: `3 → 64 → 192 → 384 → 256 → 256`
+  👉 more filters = more complex features learned.
+
+* The **spatial size** shrinks: `224 → 55 → 27 → 13 → 6`
+  👉 each feature map becomes smaller, but more “abstract.”
+
+* By the end of `features`, each input image is represented as
+  **256 feature maps of size 6×6**.
+
+Flattening this gives:
+
+$$
+256 \times 6 \times 6 = 9216
+$$
+
+This is exactly the input to the `classifier`.
+
+---
+
+✅ So `(features)` = **CNN backbone**: takes (3×224×224) input → outputs (256×6×6) deep feature maps.
+Then `(classifier)` = dense layers mapping those features to **1000 classes**.
+
+---
