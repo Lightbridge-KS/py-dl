@@ -1,0 +1,220 @@
+# ResNet: Skip Connection
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** I'm still not understand about "Skip connections / identity shortcuts" in this ResNet18. Please Explain more clearly. Add plain text diagrams to illustrate it.
+:::
+
+Great question  — **skip connections** (a.k.a. **identity shortcuts**) are the *signature move* of ResNet. Let’s slow down and make it crystal clear.
+
+---
+
+###  The Problem Without Skips
+
+In a plain CNN block:
+
+```
+x ──► Conv → BN → ReLU → Conv → BN ──► y
+```
+
+* The block must learn the **entire mapping** from input `x` to output `y`.
+* As we stack more layers, optimization gets harder. Sometimes the deeper model performs *worse* (training error goes up) — this is called the **degradation problem**.
+
+---
+
+###  The Solution: Skip Connection
+
+ResNet says:
+ Instead of forcing the block to learn the full mapping, let it learn only the **residual** (the “difference” from identity).
+
+So we add the input `x` directly to the output of the conv path:
+
+```
+      Conv → BN → ReLU → Conv → BN
+x ───────────────────────────────────────► + ──► ReLU ──► y
+       (residual path, learns F(x))      ↑
+                                          │
+                           (identity path, just x)
+```
+
+Mathematically:
+
+$$
+y = \text{ReLU}( F(x; W) + x )
+$$
+
+* `F(x; W)` = the residual function (two convs).
+* `x` = the shortcut (identity).
+* If `F(x)` learns 0 → then `y = ReLU(x)` (block becomes identity).
+* If `F(x)` learns something non-zero → then it adjusts `x` slightly.
+* Much easier than learning the whole mapping from scratch!
+
+---
+
+###  Why it Helps
+
+1. **Easier to learn**
+
+   * Learning “residual = 0” is trivial → network can safely ignore unneeded layers.
+   * Without skip, the layer must learn identity mapping itself (harder with ReLU/weights).
+
+2. **Better gradient flow**
+
+   * During backprop, gradients flow directly through the skip path → less vanishing/exploding.
+
+3. **Deeper networks trainable**
+
+   * ResNets successfully trained 152+ layers (!) because of this.
+
+---
+
+###  Two Flavors of Skip
+
+1. **Identity skip (simple)**
+
+   * If input and output have **same shape**:
+
+   ```
+   x ───────────────────────────► +
+          Conv3×3 → BN → ReLU → Conv3×3 → BN
+   ```
+
+2. **Projection skip (with 1×1 conv)**
+
+   * If shape changes (channels ↑ or stride ↓):
+
+   ```
+   x ──► Conv1×1(stride) → BN ───► +
+           Conv3×3 → BN → ReLU → Conv3×3 → BN
+   ```
+
+---
+
+###  Visualizing BasicBlock in ResNet-18
+
+For example, in `layer1` (64→64, stride=1):
+
+```
+x (64 channels) ────────────────────────────► +
+        Conv3×3 → BN → ReLU → Conv3×3 → BN
+```
+
+In `layer2` first block (64→128, stride=2):
+
+```
+x (64ch, 56×56) ──► Conv1×1, stride=2 → BN ─► +
+        Conv3×3, stride=2 → BN → ReLU → Conv3×3 → BN
+(Output: 128ch, 28×28)
+```
+
+---
+
+ **Key insight**: The shortcut lets the block say
+*"If I don’t know what to do, I’ll just pass `x` forward unchanged. If I can help, I’ll add a correction (`F(x)`)."*
+
+That’s why it’s called a **residual block**.
+
+---
+
+
+Perfect  — let’s make it **concrete** with toy tensor shapes.
+We’ll use PyTorch notation: `[N, C, H, W]` = (batch size, channels, height, width).
+Suppose batch size `N=2` for clarity.
+
+---
+
+## Skip Types
+
+###  Case 1: **Identity Skip (no shape change)**
+
+Example: ResNet-18 **layer1** block (input/output both `64×56×56`).
+
+```
+Input x: [2, 64, 56, 56]
+```
+
+Residual branch:
+
+```
+Conv3×3 (stride=1, 64→64) → BN → ReLU → [2, 64, 56, 56]
+Conv3×3 (stride=1, 64→64) → BN        → [2, 64, 56, 56]
+```
+
+Skip branch (identity):
+
+```
+x unchanged → [2, 64, 56, 56]
+```
+
+Addition:
+
+```
+Residual [2, 64, 56, 56] + Skip [2, 64, 56, 56]
+         = [2, 64, 56, 56]
+```
+
+Final ReLU:
+
+```
+Output y: [2, 64, 56, 56]
+```
+
+**Diagram**
+
+```
+          ┌──────────── Conv3×3 → BN → ReLU → Conv3×3 → BN ──────────────┐
+x [2,64,56,56]                                                            + → ReLU → y [2,64,56,56]
+          └────────────────────────────────────────────── Identity ──────┘
+```
+
+---
+
+###  Case 2: **Projection Skip (with downsample)**
+
+Example: ResNet-18 **layer2 first block** (input `64×56×56` → output `128×28×28`).
+
+```
+Input x: [2, 64, 56, 56]
+```
+
+Residual branch:
+
+```
+Conv3×3 (stride=2, 64→128) → BN → ReLU → [2, 128, 28, 28]
+Conv3×3 (stride=1, 128→128) → BN        → [2, 128, 28, 28]
+```
+
+Skip branch (projection to match shapes):
+
+```
+Conv1×1 (stride=2, 64→128) → BN → [2, 128, 28, 28]
+```
+
+Addition:
+
+```
+Residual [2, 128, 28, 28] + Skip [2, 128, 28, 28]
+         = [2, 128, 28, 28]
+```
+
+Final ReLU:
+
+```
+Output y: [2, 128, 28, 28]
+```
+
+**Diagram**
+
+```
+          ┌────────── Conv3×3(stride=2) → BN → ReLU → Conv3×3 → BN ──────┐
+x [2,64,56,56]                                                            + → ReLU → y [2,128,28,28]
+          └────────── Conv1×1(stride=2) → BN (downsample shortcut) ──────┘
+```
+
+---
+
+ This is how ResNet handles both situations:
+
+* **Identity skip** when shapes match.
+* **Projection skip** when shapes differ (channel doubling, spatial halving).
+
+---

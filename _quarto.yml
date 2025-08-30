@@ -37,6 +37,7 @@ book:
         - "contents/resnet/resnet-01-explore.ipynb"
         - "contents/resnet/resnet-02-overview.qmd"
         - "contents/resnet/resnet-03-BatchNorm2d.qmd"
+        - "contents/resnet/resnet-04-skip-connection.qmd"
     - references.qmd
 
 
