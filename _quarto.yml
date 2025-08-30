@@ -32,6 +32,11 @@ book:
         - "contents/alexnet-layers/04-avgpool.qmd"
         - "contents/alexnet-layers/05-classifier.qmd"
         - "contents/alexnet-layers/06-alexnet-params.qmd"
+    - part: ResNet Layers
+      chapters: 
+        - "contents/resnet/resnet-01-explore.ipynb"
+        - "contents/resnet/resnet-02-overview.qmd"
+        - "contents/resnet/resnet-03-BatchNorm2d.qmd"
     - references.qmd
 
 

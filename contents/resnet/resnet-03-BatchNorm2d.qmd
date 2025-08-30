@@ -1,0 +1,92 @@
+# ResNet: BatchNorm2d
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** Let's focus on (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True), explains each of the parameters and draw plain text diagrams to illustrate it.
+:::
+
+`BatchNorm2d` is deceptively small in code but super important in ResNet.
+Let’s break down **`BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)`** piece by piece.
+
+---
+
+## Parameters
+
+### `BatchNorm2d(64, …)`
+
+* `64` = **number of channels** (a.k.a. feature maps).
+  BN has to maintain statistics and learnable parameters *per channel*.
+  Here the input has 64 channels → so BN maintains 64 means, variances, γ (scale), and β (shift).
+
+---
+
+### `eps=1e-05`
+
+* Small constant added to variance during normalization:
+
+  $$
+  \hat{x} = \frac{x - \mu}{\sqrt{\sigma^2 + \epsilon}}
+  $$
+* Prevents division by zero.
+* Default in PyTorch is `1e-5`.
+
+---
+
+### `momentum=0.1`
+
+* Controls how much the running (global) statistics update during training:
+
+  $$
+  \text{running\_mean} = (1 - m)\,\text{running\_mean} + m\,\text{batch\_mean}
+  $$
+* With `momentum=0.1`, each new batch contributes **10%** to the moving average, **90%** comes from history.
+* Larger momentum → faster update but noisier. Smaller → slower update, smoother.
+
+---
+
+### `affine=True`
+
+* Adds **learnable scale (γ) and shift (β)** per channel:
+
+  $$
+  y = \gamma \hat{x} + \beta
+  $$
+* Without this (`affine=False`), BN only normalizes to zero mean & unit variance, no ability to re-center/re-scale.
+* With affine, the network can “undo” normalization if it helps optimization.
+
+---
+
+### `track_running_stats=True`
+
+* BN maintains **running mean & variance** across batches (used in inference).
+* During training → batch statistics (mean, var).
+* During inference → running statistics (global estimate).
+* If `False`, BN uses *only* the current batch stats even in eval mode.
+
+---
+
+##  Workflow Diagram (Plain Text)
+
+Imagine 64 channels (feature maps). For each channel:
+
+```
+Input (channel c) → Compute batch mean μ_c and variance σ²_c
+                   ↓
+         Normalize: (x - μ_c) / sqrt(σ²_c + eps)
+                   ↓
+     Scale & Shift: γ_c * normalized + β_c
+                   ↓
+               Output (channel c)
+```
+
+Now across all 64 channels, BN holds 64 sets of {μ, σ², γ, β}.
+
+---
+
+BatchNorm2d in context of ResNet
+
+* Sits **after every convolution** (before ReLU).
+* Keeps activations stable (mean≈0, variance≈1) across layers.
+* This combats **internal covariate shift** → training is faster, deeper networks become trainable.
+* In ResNet, BN + residual connections = the recipe for stability.
+
+---

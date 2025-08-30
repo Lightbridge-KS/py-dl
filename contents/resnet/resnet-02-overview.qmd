@@ -1,0 +1,62 @@
+# ResNet Overview
+
+awesome—ResNet-18 is the “hello world” of residual networks. Here’s the big picture and what made this generation special.
+
+### Overview (what each stage does)
+
+Input assumed 3×224×224.
+
+1. **Stem**
+
+* `7×7 conv, stride 2` → **64×112×112**
+* `3×3 max-pool, stride 2` → **64×56×56**
+
+2. **Residual stages** (each stage = a stack of **BasicBlock**s; each block has two 3×3 convs with BN, and a skip connection)
+
+* **layer1**: two blocks, no downsample → **64×56×56**
+* **layer2**: first block downsamples (stride 2), channels double to 128 (1×1 projection on the skip) → **128×28×28**
+* **layer3**: stride-2 + double channels → **256×14×14**
+* **layer4**: stride-2 + double channels → **512×7×7**
+
+3. **Head**
+
+* `AdaptiveAvgPool2d(1)` → **512×1×1**
+* `Linear(512 → 1000)` (ImageNet classes)
+
+> **Why “18” layers?** Count the weight layers: 1 (stem conv) + 2×(2+2+2+2) (two convs per block, four stages with two blocks each) + 1 fc = **18**.
+
+### The key idea: residual learning (skip connections)
+
+Classic CNNs (AlexNet/VGG) struggled to go deeper due to vanishing gradients and “degradation” (training error increases as depth grows). **ResNets add identity shortcuts**:
+
+* A block learns **F(x)** and outputs **y = ReLU( BN(conv2(…)) + skip(x) )**.
+* If learning a full mapping is hard, the block can learn a near-zero residual so the overall mapping defaults to identity—**easier optimization, better gradient flow**.
+* In ResNet-18/34, each block is a **BasicBlock** (two 3×3 convs). Deeper variants (50/101/152) switch to **Bottleneck** blocks (1×1-3×3-1×1) for parameter efficiency.
+
+### What’s unique about this generation (vs. pre-ResNet CNNs)
+
+* **Skip connections / identity shortcuts**: the defining feature enabling *very* deep nets to train reliably.
+* **Simple, repeatable block design**: mostly 3×3 convs; downsample by stride-2 in the first block of a stage, and **1×1 projection** on the skip when shape changes.
+* **Batch Normalization everywhere**: stabilizes and speeds training; ResNets relied on BN (no Local Response Norm).
+* **Global (adaptive) average pooling** instead of big fully-connected stacks: fewer parameters, better regularization.
+* **No dropout needed** (BN + residuals were enough in the original recipe).
+* **He/Kaiming initialization** pairs naturally with ReLU for healthy signal propagation.
+* **Parameter efficiency & accuracy scaling**: you can scale depth (18→34→50→…) and width/channels stage-wise in a disciplined way.
+
+### Reading your printed module
+
+* The `downsample` sub-Sequential appears only when the block changes spatial size/channels (e.g., at the first block of layer2/3/4). That’s the **1×1 conv** aligning the skip’s shape before addition.
+* The final `ReLU` after the residual addition isn’t listed in the module tree inside each `BasicBlock`, but it’s applied in `forward()`.
+* `AdaptiveAvgPool2d((1,1))` makes the model input-size agnostic (as long as sizes are divisible by the stage strides).
+
+### Quick shape walkthrough (224×224 input)
+
+`224²×3 → 112²×64 → 56²×64 → 56²×64 → 28²×128 → 14²×256 → 7²×512 → 1²×512 → fc(512→classes)`
+
+### Practical notes (PyTorch, medical imaging tips)
+
+* **Grayscale** radiographs/CT slices: change `conv1.in_channels` to 1 (or replicate channel) and adjust the first conv weights; pretrained weights need careful adaptation.
+* **Fine-tuning**: freeze early stages and train `layer4` + `fc` for small datasets; or use discriminative LRs per stage.
+* **Zero-init the last BN in each block** (`zero_init_residual=True` in torchvision) to start blocks closer to identity for slightly better training stability.
+
+If you want, next we can draw a plain-text block diagram with residual arrows or run a tiny PyTorch snippet to print tensor shapes through each stage on a mock image.
