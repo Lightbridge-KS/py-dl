@@ -1,0 +1,87 @@
+# AvgPool
+
+Great, now let’s focus on the **`avgpool`** block of AlexNet:
+
+```python
+(avgpool): AdaptiveAvgPool2d(output_size=(6, 6))
+```
+
+## Overview
+
+---
+
+###  What is AdaptiveAvgPool2d?
+
+It’s an **average pooling layer** that *automatically adjusts* its kernel size and stride so that the **output has a fixed spatial size** `(6,6)`, no matter what the input size is.
+
+* **Normal pooling (`AvgPool2d`)** → you specify `kernel_size`, `stride`. The output size depends on the input.
+* **Adaptive pooling (`AdaptiveAvgPool2d`)** → you specify **desired output size**. PyTorch figures out kernel & stride to make it happen.
+
+ In AlexNet, this ensures that before flattening, the feature map is always **(256, 6, 6)**.
+
+---
+
+###  Why is this needed?
+
+* After the last conv+maxpool, AlexNet (on 224×224 input) gives `(N, 256, 6, 6)` anyway.
+* But if your input were larger/smaller (say 256×256), the feature map might be `(N, 256, 7, 7)` or `(N, 256, 5, 5)`.
+* `AdaptiveAvgPool2d((6,6))` **guarantees** the output is `(6,6)` regardless of input size.
+* This makes the model **more robust** to varying input sizes.
+
+---
+
+###  What does average pooling mean?
+
+Within each window, instead of taking the **max** (like MaxPool), it takes the **mean** of the values.
+
+Example:
+
+Input (one feature map, 4×4):
+
+```
+1  2  3  4
+5  6  7  8
+9 10 11 12
+13 14 15 16
+```
+
+If we apply `AdaptiveAvgPool2d((2,2))`, PyTorch divides it into 4 regions and averages each:
+
+```
+Top-left   = mean(1,2,5,6)   = 3.5
+Top-right  = mean(3,4,7,8)   = 5.5
+Bottom-left= mean(9,10,13,14)=11.5
+Bottom-right=mean(11,12,15,16)=13.5
+```
+
+Output:
+
+```
+3.5   5.5
+11.5  13.5
+```
+
+---
+
+###  In AlexNet
+
+* Input from `features`: `(N, 256, 6, 6)` already.
+* `AdaptiveAvgPool2d((6,6))` keeps it the same.
+* But if input resolution were different, it would adapt to make sure output is always `(N, 256, 6, 6)`.
+
+---
+
+###  Intuition
+
+Think of it as a **“resizer”** for the feature map:
+
+* CNN extracts features → may give variable sizes
+* Adaptive pooling “squeezes” them into a fixed grid (6×6)
+* Classifier then always receives the same number of features (`256×6×6 = 9216`).
+
+---
+
+ So in short:
+`AdaptiveAvgPool2d((6,6))` = “take whatever feature map you got and average-pool it into exactly **6×6 per channel**,” ensuring fixed-size input for the classifier.
+
+---

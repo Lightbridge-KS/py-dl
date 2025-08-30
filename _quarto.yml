@@ -18,6 +18,7 @@ book:
         - "contents/alexnet-layers/01-conv2d.qmd"
         - "contents/alexnet-layers/02-MaxPool2d.qmd"
         - "contents/alexnet-layers/03-features.qmd"
+        - "contents/alexnet-layers/04-avgpool.qmd"
     - references.qmd
 
 
