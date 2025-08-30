@@ -16,6 +16,7 @@ book:
     - part: Layers
       chapters: 
         - "contents/layers/conv2d.qmd"
+        - "contents/layers/MaxPool2d.qmd"
     - references.qmd
 
 
