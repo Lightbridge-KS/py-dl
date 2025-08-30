@@ -290,5 +290,3 @@ Each voxel value = class ID
 | Cine/Perfusion MRI | `(N, T, H, W)`                       | `(4, 30, 256, 256)`     |
 
 ---
-
-👉 Do you want me to also show how **different PyTorch layers expect these shapes** (e.g., `Conv2d` expects `(N, C, H, W)` vs `Conv3d` expects `(N, C, D, H, W)`)? That’s usually the next step after anatomy + shapes.
