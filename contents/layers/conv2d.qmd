@@ -1,0 +1,343 @@
+# Conv2d
+
+::: {.callout-note appearance="simple" collapse="true"}
+### AlexNet Example
+
+```
+AlexNet(
+  (features): Sequential(
+    (0): Conv2d(3, 64, kernel_size=(11, 11), stride=(4, 4), padding=(2, 2))
+    (1): ReLU(inplace=True)
+    (2): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False)
+    (3): Conv2d(64, 192, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
+    (4): ReLU(inplace=True)
+    (5): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False)
+    (6): Conv2d(192, 384, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (7): ReLU(inplace=True)
+    (8): Conv2d(384, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (9): ReLU(inplace=True)
+    (10): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (11): ReLU(inplace=True)
+    (12): MaxPool2d(kernel_size=3, stride=2, padding=0, dilation=1, ceil_mode=False)
+  )
+  (avgpool): AdaptiveAvgPool2d(output_size=(6, 6))
+  (classifier): Sequential(
+    (0): Dropout(p=0.5, inplace=False)
+    (1): Linear(in_features=9216, out_features=4096, bias=True)
+    (2): ReLU(inplace=True)
+    (3): Dropout(p=0.5, inplace=False)
+    (4): Linear(in_features=4096, out_features=4096, bias=True)
+    (5): ReLU(inplace=True)
+    (6): Linear(in_features=4096, out_features=1000, bias=True)
+  )
+)
+```
+:::
+
+## Overview
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** Let's focus on `Conv2d(3, 64, kernel_size=11, stride=4, padding=2)`, explains each of the parameters and draw plain text diagrams to illustrate it.
+:::
+
+
+Great — let’s zoom in on
+
+```python
+Conv2d(3, 64, kernel_size=11, stride=4, padding=2)
+```
+
+This is the **very first convolutional layer in AlexNet**, so it’s worth unpacking carefully.
+
+---
+
+###  Parameters
+
+1. **`3` → in\_channels**
+
+   * Input image has 3 channels (**RGB**).
+   * Each filter looks across all 3 channels at once.
+
+2. **`64` → out\_channels**
+
+   * There are **64 filters** (a.k.a. kernels).
+   * Each filter produces **1 feature map**, so output will be **64 feature maps**.
+
+3. **`kernel_size=11`**
+
+   * Each filter is **11×11** pixels wide (and depth = 3).
+   * Think of it as a small “window” sliding across the image, computing weighted sums.
+
+4. **`stride=4`**
+
+   * The filter moves **4 pixels at a time** (horizontally and vertically).
+   * This reduces the **spatial resolution** quickly (downsampling).
+
+5. **`padding=2`**
+
+   * Adds **2 pixels of zero padding** around the image border.
+   * Helps preserve more spatial info near edges.
+
+---
+
+###  Input → Output Dimensions
+
+General formula:
+
+$$
+\text{Output size} = \frac{(W - K + 2P)}{S} + 1
+$$
+
+* $W$ = input size
+* $K$ = kernel size
+* $P$ = padding
+* $S$ = stride
+
+For AlexNet input: **224×224×3**
+
+$$
+\frac{224 - 11 + 2(2)}{4} + 1 = \frac{217}{4} + 1 = 55
+$$
+
+ Output size = **55×55×64**
+
+---
+
+###  Plain Text Diagrams
+
+#### Input image (3 channels, 224×224)
+
+```
+RGB image (3x224x224)
+ ┌───────────────────────────────┐
+ │   [R] [G] [B] channels        │
+ │   size: 224 x 224 each        │
+ └───────────────────────────────┘
+```
+
+#### Convolution filter (11×11×3)
+
+```
+One filter = 11 x 11 x 3
+  - Covers all 3 channels
+  - Learns edge/texture patterns
+```
+
+#### Sliding window with stride 4
+
+```
+Input (224x224) with padding=2
+[■■■■■■■■■■■] → 11x11 window
+   step right by 4 → [....■■■■■■■■■■■]
+   step down by 4   → moves window down
+```
+
+So instead of scanning every pixel, it **jumps 4 pixels** each time → smaller output map.
+
+#### Output feature maps
+
+```
+After conv:
+  Output = 55 x 55 x 64
+
+Think:
+ ┌───────────────┐
+ │ Map 1 (edges) │
+ │ Map 2 (colors)│
+ │ Map 3 (textures)
+ │   ...         │
+ │ Map 64 (...)  │
+ └───────────────┘
+```
+
+---
+
+ So this first layer:
+
+* Shrinks **224×224×3 → 55×55×64**
+* Detects very coarse features (edges, color blobs)
+* Sets the stage for deeper layers to refine features.
+
+---
+
+## Conv Animation
+
+::: {.callout-note appearance="simple" collapse="false"}
+**Q:** Show a step-by-step animation with plain text diagrams regarding these kernels convoluted over the input tensor to produce the output.
+:::
+
+
+
+Awesome—let’s “animate” the very first AlexNet layer
+
+```python
+Conv2d(3, 64, kernel_size=11, stride=4, padding=2)
+```
+
+using plain-text frames. I’ll keep the grid tiny for readability (the real input is 224×224), but the motion (stride=4), padding (2 on all sides), and 11×11 window are exactly the same concepts.
+
+---
+
+### Legend (what you’re seeing)
+
+* `.` = zero padding
+* `#` = real image pixels (one channel slice shown)
+* `[]` = the current 11×11 convolution window (top-left corner emphasized)
+* We show only **one** output channel’s computation (one kernel). In reality there are **64** kernels → 64 output maps.
+* PyTorch’s `Conv2d` is **cross-correlation** (no kernel flip).
+
+---
+
+### Frame A — padded input & starting position
+
+Padding `P=2` adds a 2-pixel zero border. The 11×11 window starts partially on padding.
+
+```
+      ←────────── some columns ──────────→
+    ........................................
+    ........................................
+    ..[#################################]...
+    ..[#                             ...]...
+    ..[#     11x11 window (top-left) ...]...
+    ..[#                             ...]...
+    ..[#################################]...
+    ........................................
+    ........................................
+         ↑
+         top-left at padded coords (row=0, col=0)
+         (means original-image coords start at -2,-2)
+```
+
+* This window covers rows/cols `0..10` in the **padded** tensor (some of those are padding dots).
+
+**Output pixel produced:** `y[0,0]` (for this kernel)
+
+$$
+y[0,0] = \sum_{c=0}^{2} \sum_{u=0}^{10} \sum_{v=0}^{10} W_{c,u,v}\cdot X^{(pad)}_{c,\,0+u,\,0+v} + b
+$$
+
+---
+
+### Frame B — move right by `stride=4`
+
+Each step jumps **4 pixels** horizontally.
+
+```
+    ..#################################......
+    ..#                             [###]...
+    ..#        (moved right by 4)   [###]...
+    ..#                             [###]...
+    ..#################################......
+                     ↑
+                new top-left at (row=0, col=4) in padded coords
+```
+
+**Output pixel produced:** `y[0,1]`
+
+$$
+y[0,1] = \sum W \cdot X^{(pad)}_{c,\,0+u,\,4+v} + b
+$$
+
+---
+
+### Frame C — another stride to the right
+
+```
+    ..###############################[##]...
+    ..#                              [##]...
+    ..#   (right by another 4)       [##]...
+    ..#                              [##]...
+    ..###############################[##]...
+                                  ↑
+                        top-left at (0, 8)
+```
+
+**Output pixel produced:** `y[0,2]`
+
+This continues across the row until the last valid top-left; for a 224×224 image the output width works out to **55** columns.
+
+---
+
+### Frame D — wrap to next output row (move down by `stride=4`)
+
+When we run out of room horizontally, we reset horizontally and go **down 4** pixels.
+
+```
+Row 0 done → go down:
+
+    ..#################################.....
+    ..#                             ...#....
+    ..# (now shifted down by 4)     ...#....
+    ..#                             ...#....
+    ..#################################.....
+    ..[#################################]...
+    ..[#                             ...]...
+    ..[#          new row            ...]...
+    ..[#        (top-left at         ...]...
+    ..[#################################]...
+         ↑
+         top-left at (row=4, col=0) in padded coords
+```
+
+**Output pixel produced:** `y[1,0]`
+
+$$
+y[1,0] = \sum W \cdot X^{(pad)}_{c,\,4+u,\,0+v} + b
+$$
+
+We keep scanning: right by 4, right by 4, … then down by 4, etc., filling a **55×55** output grid per kernel.
+
+---
+
+# Depth (3-channel) view for **one** output pixel
+
+Each 11×11 window actually spans **all 3 input channels** (R, G, B). A single kernel has shape `3×11×11`. You multiply–sum per channel, then sum across channels, then add bias.
+
+```
+Channel R slice (11x11)   ×   W_R (11x11)
+Channel G slice (11x11)   ×   W_G (11x11)
+Channel B slice (11x11)   ×   W_B (11x11)
+-----------------------------------------
+Sum all 3 results + bias  → one scalar → y[r,c] for this kernel
+```
+
+So for the same spatial window, you do three 11×11 dot-products (one per channel) and add them up.
+
+---
+
+### Producing **64** output maps
+
+There are **64 different kernels** (each with its own `W` and `b`).
+The exact same sliding process is repeated for each kernel, producing:
+
+```
+Output tensor: (out_channels=64, height=55, width=55)
+
+Stack of 55x55 maps:
+  Map #1  ← kernel #1
+  Map #2  ← kernel #2
+  ...
+  Map #64 ← kernel #64
+```
+
+---
+
+### Coordinate formula (handy mental model)
+
+For an output location `(r, c)` (0-indexed), the corresponding top-left in the **original (unpadded) image** is:
+
+```
+row_start = r*stride - padding
+col_start = c*stride - padding
+```
+
+The window then covers `[row_start : row_start+11) × [col_start : col_start+11)`; values outside the image are treated as 0 due to padding.
+
+---
+
+### Why this feels like an “animation”
+
+* Start at the top-left, **slide right** by 4 → write to the next output column
+* When you can’t slide further, **jump down** by 4 and reset to the left
+* Repeat until you fill the 55×55 grid (per kernel)
+* Do this **64 times** (once per kernel) → stack the results

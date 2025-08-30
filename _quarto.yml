@@ -13,6 +13,9 @@ book:
       chapters: 
         - "contents/tensor/tensor-01-basic.ipynb"
         - "contents/tensor/tensor-02-viz.ipynb"
+    - part: Layers
+      chapters: 
+        - "contents/layers/conv2d.qmd"
     - references.qmd
 
 
