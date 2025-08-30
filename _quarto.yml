@@ -9,6 +9,9 @@ book:
   site-url: https://py-dl-lightbridge.netlify.app
   chapters:
     - index.qmd
+    - part: History
+      chapters: 
+        - "contents/history/cnn-evolution-01.qmd"
     - part: Intro
       chapters: 
         - "contents/overview/pre_trained_networks.ipynb"

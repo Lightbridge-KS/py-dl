@@ -1,0 +1,198 @@
+# CNN Evolution
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** What are the popular CNN architectures? Give me a tour in chronological order.
+:::
+
+##  **The CNN Family Tree in Chronological Order**
+
+### **LeNet-5 (1998, Yann LeCun)**
+
+* **Task**: Handwritten digit recognition (MNIST).
+* **Architecture**: 5 layers (Conv → Pool → Conv → Pool → FC → Output).
+* **Key Idea**: Introduced **convolution + pooling** for feature extraction.
+* **Impact**: First successful CNN, but limited by hardware and data.
+
+---
+
+### **AlexNet (2012, Krizhevsky et al.)**
+
+* **Task**: ImageNet classification.
+* **Architecture**: 8 layers (5 conv + 3 fully connected).
+* **Key Ideas**:
+
+  * Used **ReLU** activation (faster training).
+  * **Dropout** to prevent overfitting.
+  * **Data augmentation** for generalization.
+  * Trained on **GPUs** for the first time.
+* **Impact**: Won ImageNet 2012 by a huge margin → started the *deep learning revolution*.
+
+---
+
+### **ZFNet (2013, Zeiler & Fergus)**
+
+* **Task**: ImageNet classification.
+* **Key Idea**: Tweaked AlexNet (smaller stride, deeper filters).
+* **Impact**: Introduced **deconvolutional visualization** to look inside CNNs.
+
+---
+
+### **VGGNet (2014, Simonyan & Zisserman)**
+
+* **Task**: ImageNet classification.
+* **Architecture**: 16–19 layers, only **3×3 convolutions** stacked.
+* **Key Ideas**:
+
+  * Simple, uniform design.
+  * Depth matters → deeper networks work better.
+* **Impact**: Very popular, still used as a **feature extractor** in medical imaging.
+
+---
+
+### **GoogLeNet / Inception (2014, Szegedy et al.)**
+
+* **Task**: ImageNet classification.
+* **Architecture**: 22 layers, **Inception modules** (parallel 1×1, 3×3, 5×5 convs + pooling).
+* **Key Ideas**:
+
+  * **1×1 convolutions** for dimension reduction.
+  * Efficient, fewer parameters than VGG.
+* **Impact**: Showed you can go deeper **without huge parameter count**.
+
+---
+
+### **ResNet (2015, He et al.)**
+
+* **Task**: ImageNet classification.
+* **Architecture**: Up to **152 layers**.
+* **Key Ideas**:
+
+  * Introduced **Residual Connections (skip connections)**.
+  * Solved the **vanishing gradient** problem.
+* **Impact**: Enabled **ultra-deep networks**, became the *default backbone* in computer vision.
+
+---
+
+### **ResNeXt & Xception (2016–2017)**
+
+* **ResNeXt (2016)**:
+
+  * “Split-Transform-Merge” with **cardinality** (multiple parallel paths).
+* **Xception (2017)**:
+
+  * Extreme Inception → replaced convolutions with **depthwise separable convs**.
+* **Impact**: More efficient architectures, foundation for **MobileNet**.
+
+---
+
+### **DenseNet (2017, Huang et al.)**
+
+* **Architecture**: Each layer connects to **all subsequent layers**.
+* **Key Ideas**:
+
+  * Feature reuse.
+  * Better gradient flow.
+  * Very **parameter efficient**.
+* **Impact**: Influenced efficient medical imaging CNNs.
+
+---
+
+### **MobileNet (2017, Google)**
+
+* **Target**: Mobile/embedded devices.
+* **Key Ideas**:
+
+  * **Depthwise separable convolutions** → reduce FLOPs.
+  * Compact and fast.
+* **Impact**: Deployed in real-world apps (e.g., on-device ML).
+
+---
+
+### **EfficientNet (2019, Tan & Le)**
+
+* **Task**: ImageNet classification.
+* **Key Ideas**:
+
+  * Introduced **compound scaling** (balance depth, width, resolution).
+  * Very efficient in accuracy vs. FLOPs tradeoff.
+* **Impact**: Became the **state of the art** backbone for many tasks.
+
+---
+
+### **ConvNeXt (2022, Facebook/Meta)**
+
+* **Key Idea**: Modernizes ResNet with design ideas from **Vision Transformers (ViTs)**:
+
+  * Larger kernels, layer norm, depthwise convs.
+* **Impact**: Bridging CNNs and Transformers.
+
+---
+
+##  Summary Timeline
+
+```
+1998 → LeNet-5
+2012 → AlexNet
+2013 → ZFNet
+2014 → VGGNet, GoogLeNet (Inception)
+2015 → ResNet
+2016 → ResNeXt
+2017 → DenseNet, Xception, MobileNet
+2019 → EfficientNet
+2022 → ConvNeXt
+```
+
+---
+
+ **Key trend**:
+
+* **1990s–2012** → small, shallow CNNs.
+* **2012–2015** → deeper networks (AlexNet → VGG → Inception).
+* **2015–2017** → residual/dense connections for very deep nets.
+* **2017–2020** → efficiency (MobileNet, EfficientNet).
+* **2020+** → hybrid CNN/Transformer architectures.
+
+---
+
+Perfect  Let’s sketch the **CNN family tree** as an ASCII diagram.
+This shows the **evolution and branching** of the main architectures:
+
+---
+
+##  CNN Family Tree
+
+```
+LeNet-5 (1998)
+     │
+     ▼
+AlexNet (2012)
+     │
+     ├── ZFNet (2013)
+     │
+     ├── VGGNet (2014)
+     │
+     ├── GoogLeNet / Inception (2014)
+     │          │
+     │          └── Inception-v2/v3/v4 (2015–2016)
+     │
+     └── ResNet (2015)
+            │
+            ├── ResNeXt (2016)
+            │
+            ├── DenseNet (2017)
+            │
+            ├── Xception (2017)
+            │          └── MobileNet (2017)
+            │
+            └── EfficientNet (2019)
+                     │
+                     └── ConvNeXt (2022)
+```
+
+---
+
+###  How to read it:
+
+* **Vertical arrows (│, ▼)** → direct evolution/next big step.
+* **Branches (├──, └──)** → side innovations inspired by the parent.
+* You can see how AlexNet started the modern era, ResNet enabled *deep & stable* training, and then branches focused either on **efficiency** (MobileNet, EfficientNet) or **modernization** (ConvNeXt).
