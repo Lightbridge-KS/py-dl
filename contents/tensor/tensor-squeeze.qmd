@@ -1,0 +1,102 @@
+# Tensor Squeeze
+
+## `unsqueeze` operation
+
+The `unsqueeze` operation is a fundamental tensor manipulation in PyTorch that **adds a new dimension of size 1** to a tensor at a specified position. Think of it as expanding the tensor's shape by inserting a singleton dimension.
+
+### Basic Concept
+
+```
+Original tensor shape: (3, 4)
+After unsqueeze(0):    (1, 3, 4)  # New dim at position 0
+After unsqueeze(1):    (3, 1, 4)  # New dim at position 1  
+After unsqueeze(2):    (3, 4, 1)  # New dim at position 2
+```
+
+### ASCII Visualization
+
+```
+Original 2D tensor (3x4):
+┌─────────────────┐
+│ [1, 2, 3, 4]   │
+│ [5, 6, 7, 8]   │  
+│ [9,10,11,12]   │
+└─────────────────┘
+
+After unsqueeze(0) → (1,3,4):
+┌─────────────────┐
+│┌───────────────┐│
+││ [1, 2, 3, 4] ││
+││ [5, 6, 7, 8] ││
+││ [9,10,11,12] ││
+│└───────────────┘│
+└─────────────────┘
+
+After unsqueeze(1) → (3,1,4):
+┌─────────────────┐
+│ [[1, 2, 3, 4]] │
+├─────────────────┤
+│ [[5, 6, 7, 8]] │
+├─────────────────┤
+│ [[9,10,11,12]] │
+└─────────────────┘
+```
+
+### PyTorch Code Examples
+
+```python
+import torch
+
+# Create a sample tensor
+x = torch.tensor([[1, 2, 3, 4],
+                  [5, 6, 7, 8],
+                  [9, 10, 11, 12]])
+
+print(f"Original shape: {x.shape}")  # torch.Size([3, 4])
+
+# Add dimension at different positions
+x_dim0 = x.unsqueeze(0)  # Add at beginning
+x_dim1 = x.unsqueeze(1)  # Add in middle
+x_dim2 = x.unsqueeze(2)  # Add at end
+
+print(f"unsqueeze(0): {x_dim0.shape}")  # torch.Size([1, 3, 4])
+print(f"unsqueeze(1): {x_dim1.shape}")  # torch.Size([3, 1, 4])
+print(f"unsqueeze(2): {x_dim2.shape}")  # torch.Size([3, 4, 1])
+
+# Negative indexing works too
+x_neg = x.unsqueeze(-1)  # Same as unsqueeze(2)
+print(f"unsqueeze(-1): {x_neg.shape}")  # torch.Size([3, 4, 1])
+```
+
+### Common Use Cases in Medical Imaging
+
+As a radiologist working with AI, you'll encounter `unsqueeze` frequently:
+
+#### 1. **Batch Dimension Addition**
+```python
+# Single image: (Height, Width, Channels)
+image = torch.randn(512, 512, 1)  # Single grayscale CT slice
+
+# Add batch dimension for model input
+batched_image = image.unsqueeze(0)  # (1, 512, 512, 1)
+```
+
+#### 2. **Channel Dimension Manipulation**
+```python
+# Grayscale image without channel dim
+gray_image = torch.randn(256, 256)  # (H, W)
+
+# Add channel dimension
+gray_with_channel = gray_image.unsqueeze(0)  # (1, H, W) for PyTorch Conv2d
+```
+
+#### 3. **Broadcasting for Element-wise Operations**
+```python
+# Image normalization
+image = torch.randn(3, 512, 512)  # RGB medical image
+mean = torch.tensor([0.5, 0.3, 0.2])  # Per-channel means
+
+# Need to reshape mean for broadcasting
+mean = mean.unsqueeze(1).unsqueeze(2)  # (3, 1, 1)
+normalized = (image - mean) / 0.1
+```
