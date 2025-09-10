@@ -18,6 +18,7 @@ book:
     - part: Tensor
       chapters: 
         - "contents/tensor/tensor-00-anatomy.qmd"
+        - "contents/tensor/tensor-00-tutorial-official.ipynb"
         - "contents/tensor/tensor-01-basic.ipynb"
         - "contents/tensor/tensor-02-viz.ipynb"
         - "contents/tensor/tensor-03-named-tensor.ipynb"
