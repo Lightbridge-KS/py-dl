@@ -26,6 +26,8 @@ book:
     - part: Feature Processing
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"
+    - part: Logistic Regression
+        - "contents/logreg/pytorch-logreg.ipynb"
     - part: AlexNet Layers
       chapters: 
         - "contents/alexnet-layers/01-conv2d.qmd"
