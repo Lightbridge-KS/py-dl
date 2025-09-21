@@ -1,0 +1,148 @@
+# PyTorch - Logreg Concept
+
+## Binary Logistic Regression Overview
+
+Logistic regression is perfect for binary classification problems in radiology - like determining if a chest X-ray shows pneumonia (positive/negative) or if an MRI scan indicates a tumor (present/absent).
+
+### Mathematical Foundation
+
+```
+Input Features (X) → Linear Combination → Sigmoid → Probability → Decision
+     ↓                      ↓              ↓          ↓           ↓
+  [x1, x2, x3]         z = w·x + b      σ(z)     P(y=1|x)    Class
+```
+
+**Key Components:**
+1. **Linear combination**: `z = w₁x₁ + w₂x₂ + ... + wₙxₙ + b`
+2. **Sigmoid function**: `σ(z) = 1/(1 + e^(-z))`
+3. **Loss function**: Cross-entropy loss
+4. **Optimization**: Gradient descent
+
+### Sigmoid Function Visualization
+```
+P(y=1)
+   ^
+1.0|        ∩∩∩∩∩∩∩∩∩∩
+   |      ∩∩           
+   |    ∩∩               
+0.5|  ∩∩  ← Decision boundary
+   |∩∩                   
+   |∩                    
+0.0+∩∩∩∩∩∩∩∩∩∩∩∩∩∩∩∩∩∩∩∩→ z
+   -5  -2.5   0   2.5   5
+```
+
+## PyTorch Implementation
+
+
+### 1. **Computational Graph & Automatic Differentiation**
+
+PyTorch builds a computational graph automatically as you perform operations:
+
+```
+Input Data (X)
+      ↓
+[Linear Layer: W·X + b] ← Parameters (learnable)
+      ↓
+  [Sigmoid σ(z)]
+      ↓
+[Probability Output]
+      ↓
+[Loss Calculation] ← Target Labels (y)
+      ↓
+[Backward Pass] → Gradients → Parameter Updates
+```
+
+### 2. **Key PyTorch Concepts**
+
+**Tensors with `requires_grad=True`:**
+```
+Weight Tensor
+┌─────────────┐
+│ [w1, w2]    │ requires_grad=True
+│ [0.5, -0.3] │ ← PyTorch tracks operations
+└─────────────┘
+```
+
+**Automatic Gradient Computation:**
+```
+Forward:  z = W·X + b  →  σ(z)  →  Loss
+Backward: ∂L/∂W  ←  ∂L/∂z  ←  ∂L/∂σ
+```
+
+### 3. **Training Loop Architecture**
+
+```
+┌─────────────────────────────────────┐
+│           Training Loop             │
+├─────────────────────────────────────┤
+│ for epoch in range(num_epochs):     │
+│   ┌─────────────────────────────┐   │
+│   │ 1. Forward Pass             │   │
+│   │    predictions = model(X)   │   │
+│   └─────────────────────────────┘   │
+│   ┌─────────────────────────────┐   │
+│   │ 2. Compute Loss             │   │
+│   │    loss = criterion(pred,y) │   │
+│   └─────────────────────────────┘   │
+│   ┌─────────────────────────────┐   │
+│   │ 3. Backward Pass            │   │
+│   │    loss.backward()          │   │
+│   └─────────────────────────────┘   │
+│   ┌─────────────────────────────┐   │
+│   │ 4. Update Parameters        │   │
+│   │    optimizer.step()         │   │
+│   └─────────────────────────────┘   │
+│   ┌─────────────────────────────┐   │
+│   │ 5. Reset Gradients          │   │
+│   │    optimizer.zero_grad()    │   │
+│   └─────────────────────────────┘   │
+└─────────────────────────────────────┘
+```
+
+### 4. **Medical Application Context**
+
+In radiology, this could represent:
+- **Features**: Patient age, biomarker levels, image intensity values
+- **Output**: Probability of disease presence
+- **Decision boundary**: Classification threshold (usually 0.5)
+
+```
+Medical Example:
+Feature 1: Tumor Size (mm)     Feature 2: Contrast Enhancement
+     ↓                              ↓
+┌─────────┐                   ┌─────────┐
+│   15    │ ──────────┐      │  0.75   │
+└─────────┘           │      └─────────┘
+                      ↓           │
+               ┌─────────────┐     │
+               │ Linear Comb │ ←───┘
+               │ z = w₁×15 + │
+               │   w₂×0.75+b │
+               └─────────────┘
+                      ↓
+               ┌─────────────┐
+               │  Sigmoid    │
+               │ P = σ(z)    │
+               └─────────────┘
+                      ↓
+               ┌─────────────┐
+               │ P = 0.85    │ → High probability of tumor
+               └─────────────┘
+```
+
+### 5. **PyTorch Advantages**
+
+1. **Automatic Differentiation**: No manual gradient calculations
+2. **GPU Acceleration**: Easy `.cuda()` conversion
+3. **Dynamic Graphs**: Flexible model architectures
+4. **Rich Ecosystem**: Integration with medical imaging libraries
+
+### Key Takeaways for Your Radiology AI Work:
+
+1. **Start Simple**: Logistic regression is perfect for binary diagnostic decisions
+2. **Feature Engineering**: In medical imaging, feature extraction from images is crucial
+3. **Class Imbalance**: Medical datasets often have imbalanced classes (rare diseases)
+4. **Interpretability**: Logistic regression coefficients show feature importance
+5. **Scaling**: Always standardize medical measurements (age, lab values, etc.)
+

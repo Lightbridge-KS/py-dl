@@ -27,6 +27,8 @@ book:
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"
     - part: Logistic Regression
+      chapters: 
+        - "contents/logreg/pytorch-logreg-concept.qmd"
         - "contents/logreg/pytorch-logreg.ipynb"
     - part: AlexNet Layers
       chapters: 
