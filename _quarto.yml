@@ -40,6 +40,9 @@ book:
         - "contents/resnet/resnet-02-overview.qmd"
         - "contents/resnet/resnet-03-BatchNorm2d.qmd"
         - "contents/resnet/resnet-04-skip-connection.qmd"
+    - part: Keras
+      chapters: 
+        - "contents/keras/keras-mini-resnet-mnist.qmd"
     - references.qmd
 
 
