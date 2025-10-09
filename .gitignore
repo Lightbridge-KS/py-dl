@@ -1,5 +1,11 @@
 /_huang-main-code/
 
+# Data
+/data/torchdata/
+
+# Zip File
+*.tar.gz
+
 # Stuff
 .Rproj.user
 .Rhistory
