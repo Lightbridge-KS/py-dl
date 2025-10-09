@@ -47,6 +47,11 @@ book:
     - part: Keras
       chapters: 
         - "contents/keras/keras-mini-resnet-mnist.qmd"
+    - part: PyTorch
+      chapters: 
+        - "contents/pytorch/torch_simple_model.ipynb"
+        - "contents/pytorch/torch_dataloader.ipynb"
+        - "contents/pytorch/torch_training_loop.ipynb"
     - references.qmd
 
 
