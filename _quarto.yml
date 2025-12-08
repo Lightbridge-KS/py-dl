@@ -31,6 +31,8 @@ book:
       chapters: 
         - text: 2D Image Data
           href: "contents/pytorch/working-w-img/1_image_dog.ipynb"
+        - text: CT Data
+          href: "contents/pytorch/working-w-ct/2_volumetric_ct.ipynb"
     - part: Feature Processing
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"
