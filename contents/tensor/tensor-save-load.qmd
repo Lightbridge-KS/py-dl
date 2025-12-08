@@ -1,0 +1,211 @@
+---
+title: "Saving and Loading PyTorch Tensors"
+---
+
+
+Great! Let's start with a fundamental skill in PyTorch - tensor serialization. This is crucial for saving your work, checkpoints, and sharing data.
+
+
+## Overview of Tensor Serialization
+
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  PyTorch Tensor                         │
+│          (in memory - volatile)                         │
+│                                                         │
+│  tensor([[1.0, 2.0],                                    │
+│           [3.0, 4.0]])                                  │
+└──────────────────┬──────────────────────────────────────┘
+                   │
+                   │ torch.save()
+                   ▼
+         ┌─────────────────────┐
+         │   .pt or .pth file  │
+         │   (on disk - persistent)
+         └─────────────────────┘
+                   │
+                   │ torch.load()
+                   ▼
+┌─────────────────────────────────────────────────────────┐
+│              Restored Tensor                            │
+│                                                         │
+│  tensor([[1.0, 2.0],                                    │
+│           [3.0, 4.0]])                                  │
+└─────────────────────────────────────────────────────────┘
+```
+
+
+## Basic Methods
+
+
+### 1. **torch.save()** - Serialize and save
+
+
+```python
+import torch
+
+# Create a tensor
+my_tensor = torch.tensor([[1.0, 2.0, 3.0],
+                          [4.0, 5.0, 6.0]])
+
+# Save to disk
+torch.save(my_tensor, 'my_tensor.pt')
+```
+
+
+### 2. **torch.load()** - Load and deserialize
+
+
+```python
+# Load from disk
+loaded_tensor = torch.load('my_tensor.pt')
+
+print(loaded_tensor)
+# Output: tensor([[1., 2., 3.],
+#                 [4., 5., 6.]])
+```
+
+
+## Practical Examples for Your Work
+
+
+Since you work with medical imaging, here are some relevant scenarios:
+
+
+### Example 1: Saving Preprocessed CT Slices
+
+
+```python
+import torch
+
+# Simulate a batch of preprocessed CT slices
+# Shape: [batch_size, channels, height, width]
+ct_slices = torch.randn(10, 1, 512, 512)
+
+# Save preprocessed data
+torch.save(ct_slices, 'preprocessed_ct_batch.pt')
+
+# Later, load it back
+loaded_slices = torch.load('preprocessed_ct_batch.pt')
+print(f"Loaded shape: {loaded_slices.shape}")
+```
+
+
+### Example 2: Saving Multiple Tensors (Dictionary Format)
+
+
+```python
+# Save multiple related tensors together
+data_dict = {
+    'images': torch.randn(100, 1, 256, 256),
+    'labels': torch.randint(0, 2, (100,)),
+    'patient_ids': torch.arange(100),
+    'metadata': {
+        'modality': 'CT',
+        'slice_thickness': 1.25
+    }
+}
+
+torch.save(data_dict, 'radiology_dataset.pt')
+
+# Load everything back
+loaded_data = torch.load('radiology_dataset.pt')
+print(f"Images shape: {loaded_data['images'].shape}")
+print(f"Labels shape: {loaded_data['labels'].shape}")
+print(f"Modality: {loaded_data['metadata']['modality']}")
+```
+
+
+## Important Considerations
+
+
+### Device Mapping
+
+
+When loading tensors, you might want to control which device they're loaded to:
+
+```python
+# Save a GPU tensor
+gpu_tensor = torch.randn(100, 100).cuda()
+torch.save(gpu_tensor, 'gpu_tensor.pt')
+
+# Load to CPU (useful if you don't have GPU when loading)
+cpu_tensor = torch.load('gpu_tensor.pt', map_location='cpu')
+
+# Or load directly to MPS (your M3 Pro!)
+mps_tensor = torch.load('gpu_tensor.pt', map_location='mps')
+
+# Load to specific device dynamically
+device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+tensor = torch.load('gpu_tensor.pt', map_location=device)
+```
+
+
+### File Formats
+
+
+```
+Common extensions:
+├── .pt    ← PyTorch convention (recommended)
+├── .pth   ← Also common, same format
+└── .pkl   ← Pickle format (avoid for tensors)
+```
+
+
+## Alternative: Save as NumPy (for interoperability)
+
+
+If you need to share data with non-PyTorch code:
+
+```python
+import numpy as np
+
+# PyTorch → NumPy → Save
+tensor = torch.randn(10, 10)
+np.save('my_data.npy', tensor.numpy())
+
+# Load → NumPy → PyTorch
+loaded_array = np.load('my_data.npy')
+restored_tensor = torch.from_numpy(loaded_array)
+```
+
+
+## Best Practices for Your Workflow
+
+
+1. **Use descriptive names**: `preprocessed_xray_batch.pt` instead of `data.pt`
+
+2. **Include metadata**: Save tensors in dictionaries with context
+
+3. **Version control**: Add date or version numbers
+   ```python
+   torch.save(data, 'model_features_v2_20241208.pt')
+   ```
+
+4. **Leverage your M3 Pro**: Use `map_location='mps'` when loading for faster computation
+
+
+## Quick Exercise
+
+
+Try this on your Mac:
+
+```python
+import torch
+
+# Create a sample "medical image" tensor
+fake_xray = torch.randn(1, 512, 512)  # Single channel X-ray
+
+# Save it
+torch.save(fake_xray, 'sample_xray.pt')
+
+# Load it back
+loaded = torch.load('sample_xray.pt', map_location='mps')
+
+# Verify
+print(f"Loaded successfully: {loaded.shape}")
+print(f"Device: {loaded.device}")
+print(f"Min value: {loaded.min():.4f}, Max value: {loaded.max():.4f}")
+```
+

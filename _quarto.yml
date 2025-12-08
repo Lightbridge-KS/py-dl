@@ -25,6 +25,8 @@ book:
         - "contents/tensor/tensor-squeeze.qmd"
         - text: "Contiguous Tensor"
           href: "contents/tensor/tensor-contiguous.qmd"
+        - text: "Save & Load Tensor"
+          href: "contents/tensor/tensor-save-load.qmd"
     - part: Feature Processing
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"
