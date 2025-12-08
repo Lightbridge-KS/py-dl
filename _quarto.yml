@@ -27,6 +27,10 @@ book:
           href: "contents/tensor/tensor-contiguous.qmd"
         - text: "Save & Load Tensor"
           href: "contents/tensor/tensor-save-load.qmd"
+    - part: Preprocessing
+      chapters: 
+        - text: 2D Image Data
+          href: "contents/pytorch/working-w-img/1_image_dog.ipynb"
     - part: Feature Processing
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"
