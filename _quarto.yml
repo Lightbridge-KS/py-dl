@@ -23,6 +23,8 @@ book:
         - "contents/tensor/tensor-02-viz.ipynb"
         - "contents/tensor/tensor-03-named-tensor.ipynb"
         - "contents/tensor/tensor-squeeze.qmd"
+        - text: "Contiguous Tensor"
+          href: "contents/tensor/tensor-contiguous.qmd"
     - part: Feature Processing
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"

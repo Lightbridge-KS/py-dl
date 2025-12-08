@@ -1,0 +1,182 @@
+---
+title: "Contiguous Tensors in PyTorch"
+---
+
+
+Great question! This is an important concept that often confuses beginners. Let me break it down for you.
+
+## What Does "Contiguous" Mean?
+
+
+A **contiguous tensor** is one where the elements are stored in a single, continuous block of memory in the order you'd expect when iterating through it.
+
+Think of it like reading a book:
+- **Contiguous**: Pages are in order (1, 2, 3, 4...) - you read them sequentially
+- **Non-contiguous**: Pages are scattered (page 1 is here, page 3 is there, then page 2...)
+
+## Memory Layout Example
+
+
+Let's say you have a 2D tensor:
+
+```python
+import torch
+
+x = torch.tensor([[1, 2, 3],
+                  [4, 5, 6]])
+```
+
+**In memory (contiguous):**
+```
+Index:  0   1   2   3   4   5
+Value: [1] [2] [3] [4] [5] [6]
+        └───row 0────┘ └──row 1───┘
+```
+
+The elements are stored sequentially: 1→2→3→4→5→6
+
+
+## When Do Tensors Become Non-Contiguous?
+
+
+Certain operations create **views** that don't change the underlying memory but change how PyTorch interprets it:
+
+### Example 1: Transpose
+
+```python
+x = torch.tensor([[1, 2, 3],
+                  [4, 5, 6]])
+
+x_t = x.T  # Transpose
+print(x_t.is_contiguous())  # False!
+```
+
+**What happened:**
+
+Original `x` in memory: `[1, 2, 3, 4, 5, 6]`
+
+But `x_t` should be:
+```
+[[1, 4],
+ [2, 5],
+ [3, 6]]
+```
+
+To read this "logically", you'd need: `[1, 4, 2, 5, 3, 6]`  
+But the actual memory is still: `[1, 2, 3, 4, 5, 6]`
+
+**ASCII Diagram:**
+```
+Memory:     [1] [2] [3] [4] [5] [6]
+             ↓   ↓   ↓   ↓   ↓   ↓
+x reads:     1 → 2 → 3   4 → 5 → 6
+             (row 0)     (row 1)
+
+x_t reads:   1 ─┐   4 ─┐   (col 0)
+                 ↓       ↓
+             2 ─┐   5 ─┐   (col 1)
+                 ↓       ↓
+             3       6       (col 2)
+             
+             ↑ Jumping around in memory!
+```
+
+
+### Example 2: Slicing with Steps
+
+```python
+x = torch.arange(10)  # [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+y = x[::2]            # [0, 2, 4, 6, 8] - every 2nd element
+print(y.is_contiguous())  # False!
+```
+
+Memory still has: `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]`  
+But `y` only "sees": `[0, _, 2, _, 4, _, 6, _, 8, _]` (skipping elements)
+
+
+## Why Does This Matter?
+
+
+Many PyTorch operations **require** contiguous tensors:
+
+1. **`.view()`** - reshaping requires contiguous memory
+2. **Some CUDA operations** - GPU kernels often need contiguous data
+3. **Performance** - accessing contiguous memory is faster
+
+```python
+x = torch.randn(3, 4)
+x_t = x.T
+
+# This will ERROR!
+# x_t.view(12)  # RuntimeError: view size is not compatible
+
+# Need to make it contiguous first:
+x_t.contiguous().view(12)  # Works!
+```
+
+
+## How to Fix Non-Contiguous Tensors
+
+
+Use the `.contiguous()` method:
+
+```python
+x = torch.randn(3, 4)
+x_t = x.T
+
+# Check status
+print(x_t.is_contiguous())  # False
+
+# Make it contiguous (creates a copy with reordered memory)
+x_t_contig = x_t.contiguous()
+print(x_t_contig.is_contiguous())  # True
+```
+
+**Important:** `.contiguous()` creates a **copy** if needed. If the tensor is already contiguous, it returns the same tensor (no copy).
+
+
+## Practical Example for Medical Imaging
+
+
+In radiology AI, you might work with image tensors:
+
+```python
+# Typical medical image: (Batch, Channels, Height, Width)
+image = torch.randn(1, 1, 512, 512)  # CT slice
+
+# Transpose for some operation
+image_t = image.permute(0, 1, 3, 2)  # Swap H and W
+print(image_t.is_contiguous())  # False
+
+# Before passing to a model or view operation
+image_t = image_t.contiguous()  # Make it contiguous
+```
+
+
+## Quick Reference
+
+
+```python
+# Check if contiguous
+tensor.is_contiguous()
+
+# Make contiguous
+tensor = tensor.contiguous()
+
+# Operations that may create non-contiguous tensors:
+# - .T or .transpose()
+# - .permute()
+# - Slicing with steps: tensor[::2]
+# - .expand()
+# - Some indexing operations
+```
+
+
+## Summary
+
+
+- **Contiguous** = elements stored sequentially in memory
+- Some operations create **views** that reinterpret memory without copying
+- Use `.is_contiguous()` to check
+- Use `.contiguous()` to fix when needed
+- Only creates a copy if necessary
