@@ -15,6 +15,8 @@ book:
     - part: History
       chapters: 
         - "contents/history/cnn-evolution-01.qmd"
+        - text: "Classification Model"
+          href: "contents/history/classification-model-evolution.qmd"
     - part: Intro
       chapters: 
         - "contents/overview/pre_trained_networks.ipynb"
