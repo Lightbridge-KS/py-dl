@@ -1,0 +1,197 @@
+---
+title: "Understanding the Gradient Function"
+---
+
+This function computes **gradients** (derivatives) of the loss with respect to model parameters `w` and `b`. It's the heart of how neural networks learn!
+
+
+## The Context: A Simple Linear Model
+
+This code likely comes from a temperature conversion example where:
+
+```
+Model:      t_p = w * t_u + b
+
+            (predicted temp = weight × input + bias)
+```
+
+```
+                     Forward Pass
+    ┌─────────────────────────────────────────────┐
+    │                                             │
+    │   t_u ──┬──► [× w] ──┬──► [+ b] ──► t_p     │
+    │         │            │                      │
+    │       input       multiply              prediction
+    │                   by weight                 │
+    └─────────────────────────────────────────────┘
+```
+
+
+## The Chain Rule: Core Concept
+
+To update `w` and `b`, we need to know: **"How much does the loss change when we tweak each parameter?"**
+
+This requires the **chain rule** from calculus:
+
+```
+    Chain Rule Visualization
+    ═════════════════════════
+
+    If:   Loss ← t_p ← w
+    
+    Then: ∂Loss/∂w = (∂Loss/∂t_p) × (∂t_p/∂w)
+                          ↑              ↑
+                     "How much       "How much
+                      loss changes    prediction
+                      per unit        changes per
+                      prediction      unit weight"
+                      change"
+```
+
+
+## Line-by-Line Breakdown
+
+```python
+def grad_fn(t_u, t_c, t_p, w, b):
+```
+
+**Inputs:**
+- `t_u` = input data (e.g., unknown temperature readings)
+- `t_c` = target/actual values (ground truth)
+- `t_p` = predictions from the model
+- `w`, `b` = current weight and bias
+
+
+### Step 1: Gradient of Loss w.r.t. Prediction
+
+```python
+    dloss_dtp = dloss_fn(t_p, t_c)
+```
+
+```
+    Loss Function (typically MSE):
+    
+    loss = (t_p - t_c)²
+    
+    ∂loss/∂t_p = 2 × (t_p - t_c)
+                      ↑
+              This is dloss_dtp
+```
+
+
+### Step 2: Gradient of Loss w.r.t. Weight (Chain Rule)
+
+```python
+    dloss_dw = dloss_dtp * dmodel_dw(t_u, w, b)
+```
+
+```
+    Model: t_p = w × t_u + b
+    
+    ∂t_p/∂w = t_u    (derivative of w×t_u w.r.t. w)
+    
+    
+    Chain Rule Applied:
+    ┌────────────────────────────────────────────┐
+    │                                            │
+    │   ∂loss     ∂loss     ∂t_p                 │
+    │   ───── =  ─────  ×  ─────                 │
+    │    ∂w       ∂t_p      ∂w                   │
+    │                                            │
+    │         = dloss_dtp  ×  t_u                │
+    │                                            │
+    └────────────────────────────────────────────┘
+```
+
+
+### Step 3: Gradient of Loss w.r.t. Bias (Chain Rule)
+
+```python
+    dloss_db = dloss_dtp * dmodel_db(t_u, w, b)
+```
+
+```
+    Model: t_p = w × t_u + b
+    
+    ∂t_p/∂b = 1    (derivative of b w.r.t. b)
+    
+    
+    Chain Rule Applied:
+    ┌────────────────────────────────────────────┐
+    │                                            │
+    │   ∂loss     ∂loss     ∂t_p                 │
+    │   ───── =  ─────  ×  ─────                 │
+    │    ∂b       ∂t_p      ∂b                   │
+    │                                            │
+    │         = dloss_dtp  ×  1                  │
+    │                                            │
+    └────────────────────────────────────────────┘
+```
+
+
+### Step 4: Aggregate and Return
+
+```python
+    return torch.stack([dloss_dw.sum(), dloss_db.sum()])
+```
+
+**Why `.sum()`?**
+
+Since we have multiple data points, we get a gradient for each. We sum them to get the **total gradient** across the batch:
+
+```
+    Data points:  [d1, d2, d3, d4, d5]
+                   ↓   ↓   ↓   ↓   ↓
+    Gradients:    [g1, g2, g3, g4, g5]
+                   └───────┬───────┘
+                         .sum()
+                           ↓
+                    Total Gradient
+```
+
+`torch.stack()` combines both gradients into a single tensor: `[grad_w, grad_b]`
+
+
+## Visual Summary: Backward Pass
+
+```
+                        Backward Pass (Gradient Flow)
+    ┌─────────────────────────────────────────────────────────────┐
+    │                                                             │
+    │   Loss ◄─── t_p ◄─── [+ b] ◄─── [× w] ◄─── t_u              │
+    │     │        │          │          │                        │
+    │     │        │          │          │                        │
+    │     ▼        ▼          ▼          ▼                        │
+    │  (start)  dloss_dtp  dloss_db   dloss_dw                    │
+    │     │        │          │          │                        │
+    │     │        │          │          │                        │
+    │     └────────┴──────────┴──────────┘                        │
+    │           Gradients flow backward                           │
+    │           via chain rule multiplication                     │
+    └─────────────────────────────────────────────────────────────┘
+```
+
+
+## Why This Matters
+
+Once you have these gradients, you update the parameters:
+
+```python
+w = w - learning_rate * dloss_dw.sum()
+b = b - learning_rate * dloss_db.sum()
+```
+
+This moves `w` and `b` in the direction that **reduces the loss** — that's gradient descent!
+
+
+## PyTorch Autograd: The Automatic Version
+
+In practice, PyTorch does this automatically with `autograd`:
+
+```python
+loss.backward()      # Computes all gradients automatically
+w.grad               # Access gradient for w
+b.grad               # Access gradient for b
+```
+
+The book shows manual computation first so you understand *what* autograd is doing under the hood.

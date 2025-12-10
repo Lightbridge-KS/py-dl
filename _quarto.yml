@@ -22,6 +22,10 @@ book:
     - part: Intro
       chapters: 
         - "contents/overview/pre_trained_networks.ipynb"
+    - part: Concept
+      chapters: 
+        - text: Gradient
+          href: "contents/concept/gradient-func.qmd"
     - part: Tensor
       chapters: 
         - "contents/tensor/tensor-00-anatomy.qmd"
