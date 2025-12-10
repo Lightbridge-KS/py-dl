@@ -26,6 +26,8 @@ book:
       chapters: 
         - text: Gradient
           href: "contents/concept/gradient-func.qmd"
+        - text: Parameter Estimation
+          href: "contents/concept/1_parameter_estimation.ipynb"
     - part: Tensor
       chapters: 
         - "contents/tensor/tensor-00-anatomy.qmd"
