@@ -9,6 +9,9 @@ book:
   site-url: https://py-dl-lightbridge.netlify.app
   chapters:
     - index.qmd
+    - part: Math
+      chapters: 
+        - "contents/math/partial-derivative.qmd"
     - part: History
       chapters: 
         - "contents/history/cnn-evolution-01.qmd"

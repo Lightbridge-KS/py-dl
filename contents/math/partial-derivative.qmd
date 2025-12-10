@@ -1,0 +1,110 @@
+# Partial Derivatives
+
+Understanding partial derivatives is essential for deep learning since they're at the heart of how neural networks learn. Let me build on your existing knowledge of regular derivatives.
+
+
+## The Core Idea
+
+A **regular derivative** deals with functions of *one* variable. It tells you how the output changes when you nudge that single input.
+
+A **partial derivative** deals with functions of *multiple* variables. It tells you how the output changes when you nudge *one* input while keeping all the others fixed.
+
+Think of it like this:
+
+```
+Regular Derivative:          Partial Derivative:
+       
+   f(x)                         f(x, y, z)
+     │                            │  │  │
+     ▼                            ▼  ▼  ▼
+  one knob                    multiple knobs
+     │                               │
+     ▼                               ▼
+  df/dx                     ∂f/∂x  ∂f/∂y  ∂f/∂z
+                            (turn one knob at a time,
+                             hold others still)
+```
+
+
+## A Concrete Example
+
+Imagine a function with two inputs:
+
+```
+f(x, y) = x² + 3xy + y²
+```
+
+To find the **partial derivative with respect to x** (written as ∂f/∂x), you treat `y` as if it were just a constant number:
+
+```
+∂f/∂x = 2x + 3y + 0  =  2x + 3y
+        ↑     ↑   ↑
+        │     │   └── y² becomes 0 (y is "constant")
+        │     └────── 3xy → 3y (derivative of 3xy w.r.t x)
+        └──────────── x² → 2x (normal derivative rule)
+```
+
+To find the **partial derivative with respect to y** (∂f/∂y), you treat `x` as constant:
+
+```
+∂f/∂y = 0 + 3x + 2y  =  3x + 2y
+```
+
+
+## Visual Intuition
+
+Imagine a hilly landscape where your height depends on your (x, y) position:
+
+```
+        Height = f(x, y)
+              │
+              ▼
+          ┌───────────────┐
+         /               /│
+        /   ●  You      / │
+       /     ↗ ↑       /  │
+      /     ↙         /   │
+     └───────────────┘    │
+     │                │   /
+     │                │  /  y-axis
+     │                │ /
+     └────────────────┘
+           x-axis
+
+   ∂f/∂x = slope if you walk along x-direction only (→)
+   ∂f/∂y = slope if you walk along y-direction only (↑)
+```
+
+Each partial derivative measures the steepness in *one direction* while ignoring movement in other directions.
+
+
+## The Gradient: Combining All Partials
+
+When you bundle all partial derivatives together, you get the **gradient** (denoted ∇f):
+
+```
+∇f = [ ∂f/∂x ]     ← This vector points toward
+     [ ∂f/∂y ]        the steepest uphill direction
+     [ ∂f/∂z ]
+```
+
+This is exactly what deep learning uses! During training, we compute the gradient of the loss function with respect to each weight, then move in the *opposite* direction (downhill) to minimize the loss.
+
+
+## Why This Matters for Deep Learning
+
+A neural network might have millions of weights (w₁, w₂, ..., wₙ). The loss function L depends on all of them:
+
+```
+L(w₁, w₂, w₃, ..., wₙ)
+
+To update each weight, we need:
+   ∂L/∂w₁, ∂L/∂w₂, ∂L/∂w₃, ..., ∂L/∂wₙ
+
+Then:
+   w₁_new = w₁_old - learning_rate × ∂L/∂w₁
+   w₂_new = w₂_old - learning_rate × ∂L/∂w₂
+   ...
+```
+
+Each partial derivative tells us: "If I tweak *this one weight* slightly, how much does the loss change?" — and that's the foundation of **backpropagation**.
