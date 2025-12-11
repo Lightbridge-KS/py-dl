@@ -1,0 +1,255 @@
+---
+title: "Understanding `tensor.view()`"
+---
+
+
+`tensor.view()` **reshapes** a tensor without changing its data - it just changes how the data is organized/interpreted. Think of it like rearranging books on shelves without adding or removing any books.
+
+## Basic Concept
+
+
+```
+Original tensor: [2, 3, 4] → 24 elements total
+tensor.view(6, 4)         → Same 24 elements, new shape [6, 4]
+tensor.view(3, 8)         → Same 24 elements, new shape [3, 8]
+tensor.view(-1)           → Flatten to [24]
+```
+
+**Important rule**: The total number of elements must stay the same!
+
+```python
+import torch
+
+x = torch.tensor([[1, 2, 3],
+                  [4, 5, 6]])  # shape: [2, 3] = 6 elements
+
+# Reshape to [3, 2]
+x_reshaped = x.view(3, 2)
+# tensor([[1, 2],
+#         [3, 4],
+#         [5, 6]])
+
+# Flatten to 1D
+x_flat = x.view(-1)  # shape: [6]
+# tensor([1, 2, 3, 4, 5, 6])
+```
+
+**ASCII Visualization:**
+
+```
+Original [2, 3]:          After .view(3, 2):      After .view(-1):
+┌─────────┐               ┌───────┐               ┌─────────────┐
+│ 1  2  3 │               │ 1  2  │               │1 2 3 4 5 6  │
+│ 4  5  6 │               │ 3  4  │               └─────────────┘
+└─────────┘               │ 5  6  │
+                          └───────┘
+
+Same data, different shapes!
+```
+
+
+## Computing Mean & Std for Image Channels
+
+
+In medical imaging, you often need to normalize images by computing per-channel statistics. Here's where `view()` becomes useful:
+
+### Scenario: Batch of RGB/Multi-channel Images
+
+
+```python
+# Typical image batch in PyTorch
+# Shape: [Batch, Channels, Height, Width]
+images = torch.randn(32, 3, 512, 512)
+#                    ↑   ↑   ↑    ↑
+#                    │   │   └────┴── Spatial dimensions
+#                    │   └── RGB channels (or CT window channels)
+#                    └── Batch size
+
+print(images.shape)  # torch.Size([32, 3, 512, 512])
+```
+
+**ASCII Visualization of the tensor structure:**
+
+```
+Batch dimension (32 images)
+┌────────────────────────────┐
+│ Image 0                    │
+│ ┌────────────────────────┐ │
+│ │ Channel 0 (R) [512×512]│ │
+│ │ Channel 1 (G) [512×512]│ │
+│ │ Channel 2 (B) [512×512]│ │
+│ └────────────────────────┘ │
+│ Image 1                    │
+│ ...                        │
+│ Image 31                   │
+└────────────────────────────┘
+```
+
+### Method 1: Using view() to flatten spatial dimensions
+
+
+```python
+# Goal: Compute mean and std for each channel across all images
+
+# Step 1: Reshape to [Batch × Channels, Height × Width]
+# We want to treat each channel independently
+images_flat = images.view(32 * 3, 512 * 512)
+#                        ↑          ↑
+#                        96         All pixels per channel
+print(images_flat.shape)  # torch.Size([96, 262144])
+```
+
+**What happened:**
+
+```
+Before view():
+[32, 3, 512, 512] = 32 batches × 3 channels × 512×512 pixels
+
+After view(32*3, 512*512):
+[96, 262144] = 96 channel-instances × 262144 pixels each
+
+Channel 0 of image 0 ──┐
+Channel 1 of image 0   │
+Channel 2 of image 0   │
+Channel 0 of image 1   ├── 96 rows
+Channel 1 of image 1   │
+...                    │
+Channel 2 of image 31 ─┘
+```
+
+```python
+# Step 2: Compute mean and std for each of the 96 channel instances
+mean_per_instance = images_flat.mean(dim=1)  # shape: [96]
+std_per_instance = images_flat.std(dim=1)    # shape: [96]
+
+# Step 3: Reshape back to [Batch, Channels]
+mean_per_instance = mean_per_instance.view(32, 3)  # [32, 3]
+std_per_instance = std_per_instance.view(32, 3)    # [32, 3]
+```
+
+### Method 2: Per-channel statistics across entire batch (More common!)
+
+
+For normalization, you usually want **one mean and one std per channel** across **all images** in your dataset:
+
+```python
+# Compute mean and std per channel across batch and spatial dims
+# We keep the channel dimension, average out everything else
+
+# Method A: Using view()
+images_per_channel = images.view(32, 3, -1)
+#                                ↑   ↑   ↑
+#                                │   │   └── Flatten H×W
+#                                │   └── Keep channels separate
+#                                └── Keep batch
+print(images_per_channel.shape)  # torch.Size([32, 3, 262144])
+
+# Now compute mean/std across batch and pixels (dim 0 and 2)
+mean = images_per_channel.mean(dim=[0, 2])  # shape: [3]
+std = images_per_channel.std(dim=[0, 2])    # shape: [3]
+
+print(f"Mean per channel: {mean}")  # 3 values (one per channel)
+print(f"Std per channel: {std}")    # 3 values (one per channel)
+```
+
+**ASCII Visualization:**
+
+```
+Original: [32, 3, 512, 512]
+                ↓ view(32, 3, -1)
+          [32, 3, 262144]
+
+        Batch ──┐   ┌── Pixels (flattened)
+                ↓   ↓
+        ┌────────────────────┐
+Chan 0  │ [all pixels...] ×32│  → mean₀, std₀
+Chan 1  │ [all pixels...] ×32│  → mean₁, std₁
+Chan 2  │ [all pixels...] ×32│  → mean₂, std₂
+        └────────────────────┘
+             Average across →
+             these dimensions
+```
+
+### Method B: More direct approach (no view needed)
+
+
+```python
+# Even simpler! Specify which dimensions to average over
+mean = images.mean(dim=[0, 2, 3])  # Average batch, height, width
+std = images.std(dim=[0, 2, 3])    # Keep only channel dimension
+
+print(mean.shape)  # torch.Size([3])
+print(std.shape)   # torch.Size([3])
+```
+
+
+## Practical Medical Imaging Example
+
+
+```python
+# Example: CT scan preprocessing
+# You have a batch of chest CT scans with 3 window settings
+ct_batch = torch.randn(16, 3, 512, 512)
+#                      ↑   ↑
+#                      │   └── 3 windows: lung, mediastinal, bone
+#                      └── 16 patients
+
+# Compute normalization statistics for your dataset
+ct_flat = ct_batch.view(16, 3, -1)  # [16, 3, 262144]
+
+# Per-channel statistics across all patients
+lung_mean = ct_flat[:, 0, :].mean()      # Channel 0
+mediastinal_mean = ct_flat[:, 1, :].mean()  # Channel 1
+bone_mean = ct_flat[:, 2, :].mean()      # Channel 2
+
+# Or all at once:
+channel_means = ct_flat.mean(dim=[0, 2])  # [3]
+channel_stds = ct_flat.std(dim=[0, 2])    # [3]
+
+print(f"Window means: {channel_means}")
+print(f"Window stds: {channel_stds}")
+
+# Now normalize your data
+ct_normalized = (ct_batch - channel_means.view(1, 3, 1, 1)) / channel_stds.view(1, 3, 1, 1)
+#                               Broadcasting ──┴──┴──┴──┴── to match [16, 3, 512, 512]
+```
+
+
+## Key Points about view()
+
+
+1. **Memory efficient**: Doesn't copy data, just changes interpretation
+2. **Requires contiguous memory**: Sometimes you need to call `.contiguous()` first
+3. **Use -1 for automatic dimension**: `view(-1)` or `view(32, -1)` to infer size
+4. **Alternative**: `reshape()` is more flexible (handles non-contiguous tensors)
+
+```python
+# These are equivalent for computing channel statistics:
+images.view(batch, channels, -1)
+images.reshape(batch, channels, -1)
+images.flatten(2)  # Flatten from dimension 2 onwards
+```
+
+
+## Common Pattern in Training Loops
+
+
+```python
+# Typical normalization in medical imaging pipelines
+def compute_dataset_stats(dataloader):
+    """Compute mean and std for each channel across entire dataset"""
+    all_means = []
+    all_stds = []
+    
+    for batch, _ in dataloader:
+        # batch shape: [B, C, H, W]
+        batch_flat = batch.view(batch.size(0), batch.size(1), -1)
+        all_means.append(batch_flat.mean(dim=[0, 2]))
+        all_stds.append(batch_flat.std(dim=[0, 2]))
+    
+    # Average across all batches
+    dataset_mean = torch.stack(all_means).mean(dim=0)
+    dataset_std = torch.stack(all_stds).mean(dim=0)
+    
+    return dataset_mean, dataset_std
+```

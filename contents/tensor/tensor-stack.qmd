@@ -1,0 +1,131 @@
+---
+title: "Understanding `torch.stack()`"
+---
+
+`torch.stack()` takes a **sequence of tensors** and stacks them along a **new dimension**. Think of it like taking separate sheets of paper and stacking them into a pile.
+
+## Key Concept
+
+
+The crucial thing is that `torch.stack()` **creates a new dimension** - it doesn't just concatenate along an existing dimension.
+
+```
+Input:  3 tensors, each with shape [2, 3]
+Output: 1 tensor with shape [3, 2, 3]  ← New dimension created!
+```
+
+## Visual Example
+
+
+Let's say you have 3 separate 2D tensors (like image channels or patient scans):
+
+```python
+import torch
+
+# Three separate tensors (think: 3 different image slices)
+tensor1 = torch.tensor([[1, 2, 3],
+                        [4, 5, 6]])  # shape: [2, 3]
+
+tensor2 = torch.tensor([[7, 8, 9],
+                        [10, 11, 12]])  # shape: [2, 3]
+
+tensor3 = torch.tensor([[13, 14, 15],
+                        [16, 17, 18]])  # shape: [2, 3]
+```
+
+**ASCII Visualization:**
+
+```
+Before stacking (3 separate tensors):
+
+tensor1:           tensor2:           tensor3:
+┌─────────┐       ┌─────────┐       ┌─────────┐
+│ 1  2  3 │       │ 7  8  9 │       │13 14 15 │
+│ 4  5  6 │       │10 11 12 │       │16 17 18 │
+└─────────┘       └─────────┘       └─────────┘
+Shape: [2, 3]     Shape: [2, 3]     Shape: [2, 3]
+```
+
+Now let's stack them:
+
+```python
+# Stack along dimension 0 (default)
+stacked = torch.stack([tensor1, tensor2, tensor3], dim=0)
+print(stacked.shape)  # torch.Size([3, 2, 3])
+```
+
+**After stacking (dim=0):**
+
+```
+         ↓ New dimension (size 3)
+        ┌─┐
+tensor1 │ │ ┌─────────┐
+        │ │ │ 1  2  3 │
+        │ │ │ 4  5  6 │
+        ├─┤ ├─────────┤
+tensor2 │ │ │ 7  8  9 │
+        │ │ │10 11 12 │
+        ├─┤ ├─────────┤
+tensor3 │ │ │13 14 15 │
+        │ │ │16 17 18 │
+        └─┘ └─────────┘
+
+Shape: [3, 2, 3]
+        ↑  └──┴── Original dimensions
+        └── New dimension
+```
+
+## Different Dimensions
+
+
+You can stack along different dimensions:
+
+```python
+# Stack along dim=1
+stacked_dim1 = torch.stack([tensor1, tensor2, tensor3], dim=1)
+print(stacked_dim1.shape)  # torch.Size([2, 3, 3])
+
+# Stack along dim=2
+stacked_dim2 = torch.stack([tensor1, tensor2, tensor3], dim=2)
+print(stacked_dim2.shape)  # torch.Size([2, 3, 3])
+```
+
+## Common Use Case in Medical Imaging
+
+
+In radiology AI, you might use `torch.stack()` to combine multiple image slices into a batch:
+
+```python
+# Say you have 4 CT slices, each 512x512 pixels
+slice1 = torch.randn(512, 512)
+slice2 = torch.randn(512, 512)
+slice3 = torch.randn(512, 512)
+slice4 = torch.randn(512, 512)
+
+# Stack them into a batch for your model
+batch = torch.stack([slice1, slice2, slice3, slice4], dim=0)
+print(batch.shape)  # torch.Size([4, 512, 512])
+#                              ↑ batch dimension
+```
+
+## Key Difference: stack() vs cat()
+
+
+- **`torch.stack()`**: Creates a **NEW** dimension, requires all tensors to have the **same shape**
+- **`torch.cat()`**: Concatenates along an **existing** dimension, tensors can have different sizes in that dimension
+
+```python
+# Example showing the difference
+a = torch.tensor([1, 2, 3])
+b = torch.tensor([4, 5, 6])
+
+# Stack: creates new dimension
+torch.stack([a, b])  # shape: [2, 3]
+# [[1, 2, 3],
+#  [4, 5, 6]]
+
+# Cat: concatenates along existing dimension
+torch.cat([a, b])    # shape: [6]
+# [1, 2, 3, 4, 5, 6]
+```
+

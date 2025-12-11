@@ -40,6 +40,10 @@ book:
           href: "contents/tensor/tensor-contiguous.qmd"
         - text: "Save & Load Tensor"
           href: "contents/tensor/tensor-save-load.qmd"
+        - text: "Stack"
+          href: "contents/tensor/tensor-stack.qmd"
+        - text: "View"
+          href: "contents/tensor/tensor-view.qmd"
     - part: Preprocessing
       chapters: 
         - text: 2D Image Data
