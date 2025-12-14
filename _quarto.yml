@@ -77,6 +77,10 @@ book:
           href: "contents/unet/unet-intro.qmd"
         - text: Understand U-Net
           href: "contents/unet/unet-understand.qmd"
+        - text: Up convolution
+          href: "contents/unet/unet-upconvolution.qmd"
+        - text: Last Layer
+          href: "contents/unet/unet-last-layer.qmd"
     - part: Keras
       chapters: 
         - "contents/keras/keras-mini-resnet-mnist.qmd"

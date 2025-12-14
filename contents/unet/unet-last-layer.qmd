@@ -1,0 +1,233 @@
+---
+title: "U-Net: Last Layer"
+---
+
+
+> **The final 1×1 convolution produces per-pixel class logits; probabilities are obtained later using Softmax or Sigmoid, not inside the network.**
+
+I’ll answer in layers, from **what the last layer does**, to **what exactly comes out**, and **how it becomes a probability**.
+
+---
+
+## 1. What is the *last layer* in U-Net?
+
+In the original U-Net, the last layer is:
+
+```
+1 × 1 convolution
+```
+
+From the diagram:
+
+```
+388 × 388 × 64  ──(1×1 conv)──▶  388 × 388 × 2
+```
+
+### What this means
+
+* It **does NOT change spatial resolution**
+* It **does NOT mix neighboring pixels**
+* It only mixes **channels at the same pixel**
+
+You can think of it as:
+
+> a **per-pixel linear classifier**
+
+---
+
+## 2. What does a 1×1 convolution actually compute?
+
+For **each pixel (i, j)**:
+
+```
+input feature vector:  f(i,j) ∈ ℝ⁶⁴
+weights for class k:   w_k ∈ ℝ⁶⁴
+bias:                  b_k
+```
+
+The output is:
+
+```
+logit_k(i,j) = w_k · f(i,j) + b_k
+```
+
+So at every pixel, the network computes **one score per class**.
+
+---
+
+## 3. So what exactly is the output tensor?
+
+### Raw output from the network (before any activation)
+
+```
+logits shape = (N, C, H, W)
+```
+
+For original U-Net:
+
+```
+(N, 2, 388, 388)
+```
+
+Each channel contains:
+
+> **logits (unnormalized scores)**
+
+⚠️ **Not probabilities yet**
+
+---
+
+## 4. What does each channel represent?
+
+Assume **binary segmentation** (C = 2):
+
+| Channel   | Meaning                         |
+| --------- | ------------------------------- |
+| channel 0 | class-0 logit (e.g. background) |
+| channel 1 | class-1 logit (e.g. foreground) |
+
+At each pixel:
+
+```
+pixel (x, y) → [logit_bg, logit_fg]
+```
+
+---
+
+## 5. How do logits become probabilities?
+
+### A) Multi-class segmentation (C ≥ 2)
+
+Use **Softmax** across channels:
+
+```
+P(class = k | pixel) =
+exp(logit_k) / Σ exp(logit_c)
+```
+
+This ensures:
+
+* probabilities sum to 1 **per pixel**
+
+Example:
+
+```
+logits = [2.0, 0.5]
+
+softmax → [0.82, 0.18]
+```
+
+---
+
+### B) Binary segmentation (common in radiology)
+
+Two common designs:
+
+#### Option 1 — **2 channels + Softmax**
+
+```
+Output shape: (N, 2, H, W)
+Loss: CrossEntropyLoss
+```
+
+#### Option 2 — **1 channel + Sigmoid** (more modern)
+
+```
+Output shape: (N, 1, H, W)
+Loss: BCEWithLogitsLoss
+```
+
+In this case:
+
+```
+P(foreground) = sigmoid(logit)
+```
+
+Original U-Net uses **Option 1**.
+
+---
+
+## 6. Important: loss functions expect logits, NOT probabilities
+
+### PyTorch example (original U-Net style):
+
+```python
+criterion = nn.CrossEntropyLoss()
+
+# model output: (N, 2, H, W) logits
+loss = criterion(logits, target)  
+```
+
+PyTorch internally applies **LogSoftmax**.
+
+⚠️ Do NOT apply softmax yourself during training.
+
+---
+
+## 7. What is the final “segmentation map”?
+
+After inference:
+
+### Step 1: convert logits → probabilities
+
+```python
+probs = torch.softmax(logits, dim=1)
+```
+
+### Step 2: pick class with highest probability
+
+```python
+pred = torch.argmax(probs, dim=1)
+```
+
+Result:
+
+```
+pred shape = (N, H, W)
+```
+
+Each pixel is:
+
+```
+0 = background
+1 = foreground
+```
+
+This is the **final segmentation mask**.
+
+---
+
+## 8. Visual intuition (per pixel)
+
+```
+Feature vector (64)
+        │
+        ▼
+   1×1 conv
+        │
+        ▼
+[ score_bg , score_fg ]   ← logits
+        │
+     softmax
+        ▼
+[ 0.12 , 0.88 ]           ← probabilities
+        │
+     argmax
+        ▼
+foreground
+```
+
+---
+
+## 9. Why 1×1 conv is perfect here
+
+* Pixel-wise classification
+* No spatial smoothing at the end
+* Class decision uses **all learned features**
+
+This design is now standard in:
+
+* U-Net
+* FCN
+* DeepLab
+* nnU-Net

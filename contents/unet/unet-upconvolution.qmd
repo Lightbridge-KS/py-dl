@@ -1,0 +1,245 @@
+---
+title: "U-Net up convolution"
+---
+
+::: {.callout-note appearance="default" collapse="false"}
+Q: Explain how the “up convolution” works.
+:::
+
+> **Up-convolution learns how to expand a coarse semantic map into a finer spatial representation.**
+
+
+**up-convolution is the key operation that makes U-Net a U**. I’ll explain it **conceptually**, **mathematically**, and with **plain-text diagrams**, using your highlighted example:
+
+> **28×28×1024 → 56×56×512**
+
+---
+
+## 1. What “up-convolution” means in U-Net
+
+In the original U-Net, **up-convolution** means:
+
+> **Learned upsampling using a transposed convolution (`ConvTranspose2d`)**
+
+It does **two things at once**:
+
+1. **Doubles spatial resolution** (H, W)
+2. **Reduces channel depth**
+
+This is *not* just resizing — it has **trainable weights**.
+
+---
+
+## 2. The exact operation used in the paper
+
+In PyTorch terms:
+
+```python
+nn.ConvTranspose2d(
+    in_channels=1024,
+    out_channels=512,
+    kernel_size=2,
+    stride=2
+)
+```
+
+This is why:
+
+```
+28×28×1024 → 56×56×512
+```
+
+---
+
+## 3. Intuition first (high-level)
+
+Think of up-convolution as:
+
+```
+"Take a coarse semantic map
+and expand it into a finer grid
+while learning how details should look"
+```
+
+Encoder:
+
+```
+High resolution → Low resolution
+(what is lost?)
+```
+
+Decoder (up-conv):
+
+```
+Low resolution → Higher resolution
+(how to reconstruct?)
+```
+
+---
+
+## 4. Spatial intuition (2D grid)
+
+### Before up-convolution
+
+Each pixel represents a **large receptive field**:
+
+```
+28 x 28 grid
++---+---+---+
+| A | B | C |
++---+---+---+
+| D | E | F |
++---+---+---+
+```
+
+Each cell = rich semantic vector (1024 channels)
+
+---
+
+### After up-convolution (stride = 2)
+
+Each input pixel **spreads** into a 2×2 region:
+
+```
+56 x 56 grid
++--+--+--+--+
+|A1|A2|B1|B2|
++--+--+--+--+
+|A3|A4|B3|B4|
++--+--+--+--+
+```
+
+This spreading is **learned**, not fixed.
+
+---
+
+## 5. How ConvTranspose2d actually works (important)
+
+### Regular convolution (downsampling mindset)
+
+```
+Input ──► sliding kernel ──► Output
+```
+
+Kernel **reads** input and compresses information.
+
+---
+
+### Transposed convolution (upsampling mindset)
+
+```
+Input ──► kernel "writes" into a larger canvas ──► Output
+```
+
+Each input pixel:
+
+* multiplies by a kernel
+* **adds** its contribution to multiple output pixels
+
+---
+
+## 6. Visual diagram (single channel for simplicity)
+
+### Kernel = 2×2, stride = 2
+
+```
+Input pixel value = X
+
+Kernel weights:
+[a b]
+[c d]
+```
+
+Contribution to output:
+
+```
+Output grid:
+
++----+----+
+| aX | bX |
++----+----+
+| cX | dX |
++----+----+
+```
+
+Now repeat this for **every input pixel** and **sum overlaps**.
+
+---
+
+## 7. Channel perspective (critical for U-Net)
+
+### Input
+
+```
+28 × 28 × 1024
+```
+
+Interpretation:
+
+* 1024 semantic feature maps
+* very abstract information
+
+### Up-conv transforms to:
+
+```
+56 × 56 × 512
+```
+
+Why reduce channels?
+
+* Decoder gradually shifts from **semantics → localization**
+* Skip connections will add back fine details
+
+---
+
+## 8. Why U-Net uses up-convolution (not interpolation)
+
+Compare approaches:
+
+| Method                      | Learnable | Used in original U-Net |
+| --------------------------- | --------- | ---------------------- |
+| Nearest / bilinear upsample | ❌         | ❌                      |
+| Upsample + Conv             | ✅         | ❌                      |
+| **ConvTranspose2d**         | ✅         | ✅                      |
+
+Original U-Net chose **ConvTranspose2d** because:
+
+* Fewer steps
+* Directly invert pooling effect (conceptually)
+
+---
+
+## 9. How up-conv fits into the U-Net flow
+
+```
+Encoder feature (x4): 64×64×512
+             │
+             │  (skip connection, cropped)
+             ▼
+Up-conv: 28×28×1024 → 56×56×512
+             │
+             ├── concat → 56×56×1024
+             ▼
+Double 3×3 conv → refined feature map
+```
+
+This is where **context + detail merge**.
+
+---
+
+## 10. Common pitfalls (very exam / interview relevant)
+
+### ❌ Checkerboard artifacts
+
+* Can occur with transposed convolutions
+* Modern U-Nets often replace with:
+
+  ```
+  Upsample → Conv
+  ```
+
+### ❌ Shape mismatches
+
+* Original U-Net requires **cropping**
+* Modern padded U-Net does not
+
