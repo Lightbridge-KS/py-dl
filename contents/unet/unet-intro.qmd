@@ -1,0 +1,144 @@
+---
+title: "U-Net Architecture"
+---
+
+U-Net is **directly relevant to your work** as a radiologist — it was originally designed for biomedical image segmentation and remains one of the most influential architectures in medical imaging AI.
+
+
+## Why U-Net Matters for Radiology
+
+U-Net excels at tasks like:
+- Organ segmentation (liver, kidney, lung lobes)
+- Lesion/tumor delineation
+- Vessel segmentation
+- Any task where you need **pixel-wise classification**
+
+
+## The Big Picture
+
+U-Net gets its name from its **U-shaped architecture**. It has two main parts:
+
+```
+INPUT                                                    OUTPUT
+IMAGE                                                    MASK
+  │                                                        ▲
+  ▼                                                        │
+┌─────────┐                                         ┌─────────┐
+│  64 ch  │────────────────────────────────────────▶│  64 ch  │
+└────┬────┘           Skip Connection               └────▲────┘
+     │ ↓ Pool                                            │ ↑ UpConv
+┌─────────┐                                         ┌─────────┐
+│ 128 ch  │────────────────────────────────────────▶│ 128 ch  │
+└────┬────┘           Skip Connection               └────▲────┘
+     │ ↓ Pool                                            │ ↑ UpConv
+┌─────────┐                                         ┌─────────┐
+│ 256 ch  │────────────────────────────────────────▶│ 256 ch  │
+└────┬────┘           Skip Connection               └────▲────┘
+     │ ↓ Pool                                            │ ↑ UpConv
+┌─────────┐                                         ┌─────────┐
+│ 512 ch  │────────────────────────────────────────▶│ 512 ch  │
+└────┬────┘           Skip Connection               └────▲────┘
+     │ ↓ Pool                                            │ ↑ UpConv
+     │              ┌───────────┐                        │
+     └─────────────▶│ 1024 ch   │────────────────────────┘
+                    │ Bottleneck│
+                    └───────────┘
+
+     ◀──── ENCODER ────▶         ◀──── DECODER ────▶
+      (Contracting Path)          (Expanding Path)
+```
+
+
+## The Three Key Components
+
+
+### 1. Encoder (Contracting Path) — "What is in the image?"
+
+The left side **compresses** the image while extracting features:
+
+```
+Input: 256×256×1 (grayscale CT slice)
+         │
+         ▼
+    ┌─────────┐
+    │ Conv 3×3│──▶ ReLU ──▶ Conv 3×3 ──▶ ReLU
+    └─────────┘
+         │
+         ▼
+    MaxPool 2×2  (halves spatial size: 256→128→64→32→16)
+         │
+         ▼
+    [Repeat with more channels: 64→128→256→512→1024]
+```
+
+Each level learns **more abstract features** while the spatial resolution shrinks.
+
+
+### 2. Bottleneck — "Compressed understanding"
+
+At the bottom of the U, you have the most **compressed representation** with the richest semantic information (1024 channels, smallest spatial size).
+
+
+### 3. Decoder (Expanding Path) — "Where exactly?"
+
+The right side **reconstructs** spatial resolution:
+
+```
+    UpConv 2×2  (doubles spatial size: 16→32→64→128→256)
+         │
+         ▼
+    ┌─────────────────────────┐
+    │ Concatenate with        │ ◀── Skip Connection brings
+    │ encoder features        │     fine-grained details!
+    └─────────────────────────┘
+         │
+         ▼
+    Conv 3×3 ──▶ ReLU ──▶ Conv 3×3 ──▶ ReLU
+```
+
+
+## The Secret Sauce: Skip Connections
+
+This is **why U-Net works so well**:
+
+```
+ENCODER SIDE                              DECODER SIDE
+                                          
+High-resolution     ─────────────────▶    Restored with
+spatial details     (Skip Connection)     fine details
+(edges, boundaries)                       (precise boundaries!)
+```
+
+**Problem they solve:** When you compress an image through the encoder, you lose precise spatial information (exactly *where* edges are). Skip connections directly copy high-resolution features from encoder to decoder, allowing precise localization.
+
+**Analogy for radiology:** It's like having both the "gestalt" view (compressed understanding of what's there) and the original high-resolution details to draw precise contours.
+
+
+## Data Flow Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│   INPUT          ENCODER      BOTTLENECK      DECODER       │
+│  (CT/MRI)    →  Compress  →   Deepest    →   Expand    →    │
+│                 + Learn       Features       + Combine      │
+│                                              Skip Conn      │
+│                                                      │      │
+│                                                      ▼      │
+│                                              SEGMENTATION   │
+│                                                 MASK        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+
+## Quick Reference Table
+
+| Component | Purpose | Operation |
+|-----------|---------|-----------|
+| Encoder Block | Extract features | Conv→ReLU→Conv→ReLU |
+| Downsampling | Reduce size, increase receptive field | MaxPool 2×2 |
+| Bottleneck | Compressed representation | Deepest conv block |
+| Upsampling | Restore spatial resolution | Transposed Conv or Interpolate |
+| Skip Connection | Preserve fine details | Concatenate encoder↔decoder |
+| Final Layer | Output segmentation | 1×1 Conv to num_classes |
+

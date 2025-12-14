@@ -1,0 +1,200 @@
+---
+title: "Understanding U-Net Architecture"
+---
+
+U-Net is one of the most important architectures in medical image analysis. It was originally designed for biomedical image segmentation and is widely used in radiology AI for tasks like organ segmentation, tumor detection, and lesion delineation.
+
+## The Big Picture: Why "U-Net"?
+
+The architecture gets its name from its U-shaped structure:
+
+```
+INPUT                                               OUTPUT
+  │                                                   ▲
+  ▼                                                   │
+┌─────┐                                           ┌─────┐
+│     │ ─────────── skip connection ────────────► │     │
+└──┬──┘                                           └──▲──┘
+   │ (downsample)                         (upsample) │
+   ▼                                                 │
+ ┌─────┐                                         ┌─────┐
+ │     │ ─────────── skip connection ──────────► │     │
+ └──┬──┘                                         └──▲──┘
+    │                                               │
+    ▼                                               │
+   ┌─────┐                                       ┌─────┐
+   │     │ ───────── skip connection ──────────► │     │
+   └──┬──┘                                       └──▲──┘
+      │                                             │
+      ▼                                             │
+     ┌─────┐                                     ┌─────┐
+     │     │ ─────── skip connection ──────────► │     │
+     └──┬──┘                                     └──▲──┘
+        │                                           │
+        └──────────►┌───────────┐───────────────────┘
+                    │ Bottleneck│
+                    └───────────┘
+
+        ENCODER                          DECODER
+   (Contracting Path)               (Expanding Path)
+```
+
+
+## The Three Main Parts
+
+### 1. Encoder (Contracting Path) — Left Side
+
+**Purpose:** Extract "WHAT" is in the image (features) while shrinking spatial size.
+
+```
+Input: 572×572, 1 channel (grayscale)
+            │
+            ▼
+    ┌─────────────────┐
+    │ Conv 3×3 + ReLU │──► 570×570, 64 channels
+    │ Conv 3×3 + ReLU │──► 568×568, 64 channels
+    └───────┬─────────┘
+            │
+     ┌──────▼───────┐
+     │ Max Pool 2×2 │  ◄── Shrinks image by half (568→284)
+     └──────┬───────┘
+            │
+            ▼
+       (repeat 4 times, doubling channels each time)
+       64 → 128 → 256 → 512 → 1024
+```
+
+**Key operations:**
+
+| Operation | What it does | Analogy |
+|-----------|--------------|---------|
+| **Conv 3×3** | Slides a 3×3 filter across image to detect patterns | Like looking through a small window to find edges, textures |
+| **ReLU** | Keeps positive values, zeros out negatives | Turns off irrelevant signals |
+| **Max Pool 2×2** | Takes max value from each 2×2 region | Summarizes: "Is this feature present here?" |
+
+
+### 2. Bottleneck — Bottom Center
+
+```
+         32×32, 512 channels
+               │
+               ▼
+       ┌─────────────────┐
+       │ Conv 3×3 + ReLU │──► 1024 channels
+       │ Conv 3×3 + ReLU │──► 1024 channels  
+       └─────────────────┘
+               │
+    Most compressed representation
+    (smallest spatial size, most channels)
+```
+
+**Purpose:** The most abstract, high-level representation of your image. At this point, the network "knows" what objects are present but has lost precise location information.
+
+
+### 3. Decoder (Expanding Path) — Right Side
+
+**Purpose:** Recover "WHERE" things are — reconstruct spatial details for pixel-wise prediction.
+
+```
+    1024 channels, 28×28
+            │
+     ┌──────▼───────┐
+     │ Up-Conv 2×2  │ ◄── Doubles spatial size (28→56)
+     └──────┬───────┘
+            │
+            ├────────────┐
+            │      CONCATENATE with skip connection
+            │            │ (512 channels from encoder)
+            ▼            │
+    ┌─────────────────┐◄─┘
+    │ Conv 3×3 + ReLU │──► 512 channels
+    │ Conv 3×3 + ReLU │──► 512 channels
+    └───────┬─────────┘
+            │
+            ▼
+       (repeat until original size)
+       1024 → 512 → 256 → 128 → 64
+```
+
+
+### 4. Skip Connections — The Gray Horizontal Arrows
+
+This is **U-Net's key innovation**!
+
+```
+ENCODER                              DECODER
+                                     
+┌──────────┐                       ┌──────────┐
+│ 64 ch    │                       │ 64 ch    │
+│ 568×568  │━━━━━ copy & crop ━━━━▶│ + 64 ch  │ = 128 ch combined
+└──────────┘                       └──────────┘
+     │                                   ▲
+     │  (lost details                    │  (recovered details
+     │   during pooling)                 │   from skip connection)
+     ▼                                   │
+```
+
+**Why are they crucial?**
+
+Without skip connections:
+```
+Encoder: "I see a tumor" (but forgets exact boundary)
+Decoder: "There's something... somewhere in this region?"
+```
+
+With skip connections:
+```
+Encoder: "I see a tumor"
+Skip:    "Here are the exact edges I saw earlier"
+Decoder: "Tumor with precise boundaries at these pixels!"
+```
+
+**Medical imaging analogy:** 
+- Encoder = Radiologist zooming out: "This CT has a liver lesion"
+- Skip connections = Keeps the original window/level details
+- Decoder = Zooming back in: "The lesion boundary is exactly here"
+
+
+### 5. Final Layer — Conv 1×1
+
+```
+    64 channels, 388×388
+            │
+     ┌──────▼──────┐
+     │  Conv 1×1    │ ◄── Maps 64 features → 2 classes
+     └──────┬──────┘
+            │
+            ▼
+    2 channels, 388×388
+    (output segmentation map)
+    
+    Channel 0: probability of "background"
+    Channel 1: probability of "foreground/object"
+```
+
+**Purpose:** Converts feature maps to class predictions. For binary segmentation (e.g., tumor vs. background), you get 2 output channels.
+
+
+## Summary Table
+
+| Component | Operation | Effect on Size | Effect on Channels |
+|-----------|-----------|----------------|-------------------|
+| **Encoder** | Conv 3×3 | Slightly smaller (-2 each) | Increase (64→128→256→512) |
+| | Max Pool 2×2 | ÷2 | Same |
+| **Bottleneck** | Conv 3×3 | Smaller | Max (1024) |
+| **Decoder** | Up-Conv 2×2 | ×2 | Decrease |
+| | Skip + Concat | Same | Double (combined) |
+| | Conv 3×3 | Slightly smaller | Decrease |
+| **Output** | Conv 1×1 | Same | → num_classes |
+
+
+## Why U-Net Works So Well for Medical Imaging
+
+1. **Works with limited data** — Skip connections help training with small datasets (common in medical imaging)
+
+2. **Preserves fine details** — Critical for precise tumor/organ boundaries
+
+3. **Fully convolutional** — Can handle any input size; no fully connected layers
+
+4. **End-to-end training** — Input image → segmentation mask directly
+
