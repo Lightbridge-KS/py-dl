@@ -71,7 +71,7 @@ book:
         - "contents/resnet/resnet-02-overview.qmd"
         - "contents/resnet/resnet-03-BatchNorm2d.qmd"
         - "contents/resnet/resnet-04-skip-connection.qmd"
-    - part: U-Net Layes
+    - part: U-Net
       chapters: 
         - text: Intro U-Net
           href: "contents/unet/unet-intro.qmd"
@@ -81,6 +81,8 @@ book:
           href: "contents/unet/unet-upconvolution.qmd"
         - text: Last Layer
           href: "contents/unet/unet-last-layer.qmd"
+        - text: U-Net from Scratch PyTorch
+          href: "contents/unet/unet-pytorch.qmd"
     - part: Keras
       chapters: 
         - "contents/keras/keras-mini-resnet-mnist.qmd"

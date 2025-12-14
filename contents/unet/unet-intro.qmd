@@ -16,6 +16,8 @@ U-Net excels at tasks like:
 
 ## The Big Picture
 
+![U-Net Architecture](../../images/unet/unet-original.png){#fig-unet-original width="100%"}
+
 U-Net gets its name from its **U-shaped architecture**. It has two main parts:
 
 ```
