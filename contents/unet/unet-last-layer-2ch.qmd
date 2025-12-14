@@ -1,0 +1,219 @@
+---
+title: "U-Net: Last Layer - 2ch"
+---
+
+::: {.callout-note appearance="default" collapse="false"}
+Q: Focus on this 1x1 conv. How does it create 2 channels. Please explain with diagram.
+:::
+
+
+> **A 1×1 convolution creates multiple channels by applying multiple independent dot-products to the feature vector at each pixel.**
+
+
+let’s zoom **only** into the **1×1 convolution** and explain **exactly how it creates 2 channels**, step by step, with diagrams.
+
+---
+
+## 1. What goes *into* the 1×1 convolution?
+
+From the last decoder block of U-Net:
+
+```
+Feature map: 388 × 388 × 64
+```
+
+At **each pixel location (i, j)** you have a **64-dimensional feature vector**:
+
+```
+f(i,j) = [f1, f2, f3, ..., f64]
+```
+
+Think of this as:
+
+> “Everything the network knows about this pixel.”
+
+---
+
+## 2. What does “1×1 convolution with 2 output channels” mean?
+
+In PyTorch:
+
+```python
+nn.Conv2d(
+    in_channels=64,
+    out_channels=2,
+    kernel_size=1
+)
+```
+
+This creates:
+
+* **2 separate filters**
+* Each filter is size **1×1×64**
+* Each filter produces **1 output channel**
+
+So:
+
+```
+2 filters  →  2 output channels
+```
+
+---
+
+## 3. Structure of the filters (very important)
+
+### Filter for class 0 (e.g. background)
+
+```
+W_bg: shape (64)
+b_bg: scalar bias
+```
+
+### Filter for class 1 (e.g. foreground)
+
+```
+W_fg: shape (64)
+b_fg: scalar bias
+```
+
+Visually:
+
+```
+1×1 conv weights:
+
+Filter 0 (background):
+[w1_bg, w2_bg, ..., w64_bg] + b_bg
+
+Filter 1 (foreground):
+[w1_fg, w2_fg, ..., w64_fg] + b_fg
+```
+
+---
+
+## 4. What happens at **one pixel** (core idea)
+
+At pixel (i, j):
+
+```
+Input feature vector:
+[f1, f2, ..., f64]
+```
+
+Each filter does a **dot product**.
+
+### Background channel
+
+```
+score_bg(i,j) =
+f1·w1_bg + f2·w2_bg + ... + f64·w64_bg + b_bg
+```
+
+### Foreground channel
+
+```
+score_fg(i,j) =
+f1·w1_fg + f2·w2_fg + ... + f64·w64_fg + b_fg
+```
+
+---
+
+## 5. Diagram: single pixel view (most intuitive)
+
+```
+           64 feature values
+        ┌─────────────────────┐
+        │ f1  f2  ...  f64    │
+        └─────────────────────┘
+              │
+      ┌───────┴────────┐
+      │                │
+  Filter BG         Filter FG
+ (1×1×64)         (1×1×64)
+      │                │
+      ▼                ▼
+ score_bg          score_fg
+```
+
+**Result at that pixel:**
+
+```
+[ score_bg , score_fg ]
+```
+
+---
+
+## 6. Diagram: full image view
+
+Apply the same operation **independently at every pixel**:
+
+```
+Input feature map
+388×388×64
+      │
+      ▼
+1×1 conv (2 filters)
+      │
+      ▼
+Output logits
+388×388×2
+```
+
+Expanded:
+
+```
+Each pixel:
+[64 features] → [2 scores]
+```
+
+---
+
+## 7. Why this is equivalent to a per-pixel linear classifier
+
+At each pixel:
+
+```
+logits = W · f + b
+```
+
+Where:
+
+* `W` = 2 × 64 matrix
+* `f` = 64 × 1 vector
+* `b` = 2 × 1 bias
+
+This is **exactly logistic / softmax regression per pixel**.
+
+---
+
+## 8. Why spatial information is NOT mixed here
+
+Because kernel size = **1×1**:
+
+* No neighboring pixels are seen
+* No spatial smoothing
+* Decision is purely based on **features already learned**
+
+That’s why:
+
+> All spatial reasoning must happen **before** this layer.
+
+---
+
+## 9. What the 2 channels represent (important clarity)
+
+The output **channels are not masks yet**.
+
+They are:
+
+```
+Channel 0 → background LOGIT
+Channel 1 → foreground LOGIT
+```
+
+Only after:
+
+```
+Softmax(channel dimension)
+```
+
+do they become probabilities.

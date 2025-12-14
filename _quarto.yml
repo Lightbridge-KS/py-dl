@@ -81,6 +81,8 @@ book:
           href: "contents/unet/unet-upconvolution.qmd"
         - text: Last Layer
           href: "contents/unet/unet-last-layer.qmd"
+        - text: Two Channels
+          href: "contents/unet/unet-last-layer-2ch.qmd"
         - text: U-Net from Scratch PyTorch
           href: "contents/unet/unet-pytorch.qmd"
     - part: Keras
