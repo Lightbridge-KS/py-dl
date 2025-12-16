@@ -46,6 +46,10 @@ book:
           href: "contents/tensor/tensor-stack.qmd"
         - text: "View"
           href: "contents/tensor/tensor-view.qmd"
+    - part: Data Structure
+      chapters: 
+        - text: Data Structure for Training
+          href: "contents/data-structure/training-data-structure.qmd"
     - part: Preprocessing
       chapters: 
         - text: 2D Image Data

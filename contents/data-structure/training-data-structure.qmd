@@ -1,0 +1,1951 @@
+---
+title: "Training Data Structure & Network Architecture: Connecting Ground Truth to Predictions"
+---
+
+This is the crucial link that ties everything together — understanding how **what we give the model (ground truth)** aligns with **what the model outputs (predictions)** through its architecture.
+
+
+## 🎯 The Fundamental Connection
+
+```
+    THE TRAINING LOOP: Ground Truth ↔ Architecture ↔ Loss
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+                         ┌─────────────────────────────────────────┐
+                         │           TRAINING DATA                 │
+                         │                                         │
+                         │   ┌─────────┐      ┌─────────────┐      │
+                         │   │  Input  │      │ Ground Truth│      │
+                         │   │ (Image) │      │  (Labels)   │      │
+                         │   └────┬────┘      └──────┬──────┘      │
+                         │        │                  │             │
+                         └────────┼──────────────────┼─────────────┘
+                                  │                  │
+                                  ▼                  │
+                         ┌─────────────────┐         │
+                         │                 │         │
+                         │    NETWORK      │         │
+                         │                 │         │
+                         │  ┌───────────┐  │         │
+                         │  │  Backbone │  │         │
+                         │  └─────┬─────┘  │         │
+                         │        │        │         │
+                         │  ┌─────▼─────┐  │         │
+                         │  │   Head    │  │         │    The HEAD must output
+                         │  │ (Output   │  │         │    the SAME STRUCTURE
+                         │  │  Layer)   │  │         │    as the ground truth!
+                         │  └─────┬─────┘  │         │
+                         │        │        │         │
+                         └────────┼────────┘         │
+                                  │                  │
+                                  ▼                  ▼
+                         ┌─────────────┐      ┌─────────────┐
+                         │ Prediction  │      │Ground Truth │
+                         │    (ŷ)      │      │    (y)      │
+                         └──────┬──────┘      └──────┬──────┘
+                                │                    │
+                                └─────────┬──────────┘
+                                          │
+                                          ▼
+                                   ┌─────────────┐
+                                   │    LOSS     │
+                                   │  Function   │
+                                   │             │
+                                   │ L(ŷ, y)    │
+                                   └──────┬──────┘
+                                          │
+                                          ▼
+                                    Backpropagation
+                                   (Update weights)
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    KEY INSIGHT:
+    ────────────
+    
+    The OUTPUT LAYER of your network must produce data in the
+    SAME SHAPE and MEANING as your ground truth labels!
+    
+    This is why understanding label format is crucial for
+    understanding network architecture.
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+
+---
+
+# 1️⃣ Classification: Image → Single Label
+
+## Ground Truth Structure
+
+```
+    CLASSIFICATION GROUND TRUTH
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    Task: Assign ONE label (or multiple labels) to the ENTIRE image
+    
+    
+    SINGLE-LABEL (Multiclass) Classification:
+    ─────────────────────────────────────────
+    
+    ┌─────────────────┐
+    │                 │
+    │    🐱 Cat       │      Label: "cat"  OR  2  (class index)
+    │                 │
+    └─────────────────┘
+    
+    Each image has exactly ONE correct class.
+    
+    
+    MULTI-LABEL Classification:
+    ───────────────────────────
+    
+    ┌─────────────────┐
+    │                 │
+    │  Chest X-ray    │      Labels: ["cardiomegaly", "pleural_effusion"]
+    │                 │      OR Binary: [1, 0, 0, 1, 0, 0, 0, ...]
+    │                 │
+    └─────────────────┘
+    
+    Each image can have MULTIPLE conditions simultaneously.
+    (Common in medical imaging!)
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Label Representation & File Formats
+
+```
+    CLASSIFICATION LABEL FORMATS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 1: Folder Structure (Most Common for Single-Label)
+    ──────────────────────────────────────────────────────────
+    
+    dataset/
+    ├── train/
+    │   ├── cat/                    ◄── Class name = folder name
+    │   │   ├── cat_001.jpg
+    │   │   ├── cat_002.jpg
+    │   │   └── ...
+    │   ├── dog/
+    │   │   ├── dog_001.jpg
+    │   │   └── ...
+    │   └── bird/
+    │       ├── bird_001.jpg
+    │       └── ...
+    │
+    ├── val/
+    │   ├── cat/
+    │   ├── dog/
+    │   └── bird/
+    │
+    └── test/
+        ├── cat/
+        ├── dog/
+        └── bird/
+    
+    
+    PyTorch Loading:
+    ────────────────
+    
+    from torchvision.datasets import ImageFolder
+    
+    dataset = ImageFolder(root='dataset/train', transform=transforms)
+    # Automatically assigns: cat=0, dog=1, bird=2
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 2: CSV/TSV File
+    ──────────────────────
+    
+    labels.csv:
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ filename          │ label    │ (optional: split)                        │
+    ├──────────────────────────────────────────────────────────────────────────┤
+    │ img_001.jpg       │ cat      │ train                                    │
+    │ img_002.jpg       │ dog      │ train                                    │
+    │ img_003.jpg       │ cat      │ val                                      │
+    │ img_004.jpg       │ bird     │ test                                     │
+    └──────────────────────────────────────────────────────────────────────────┘
+    
+    
+    For Multi-Label (medical imaging):
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ filename    │ cardiomegaly │ effusion │ nodule │ pneumonia │ ...        │
+    ├──────────────────────────────────────────────────────────────────────────┤
+    │ xray_001    │      1       │    0     │   0    │     0     │            │
+    │ xray_002    │      0       │    1     │   1    │     0     │            │
+    │ xray_003    │      1       │    1     │   0    │     1     │            │
+    └──────────────────────────────────────────────────────────────────────────┘
+    
+    (This is similar to CheXpert, ChestX-ray14 format)
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 3: JSON File
+    ───────────────────
+    
+    labels.json:
+    {
+        "img_001.jpg": "cat",
+        "img_002.jpg": "dog",
+        "img_003.jpg": {"labels": ["cardiomegaly", "effusion"], 
+                       "split": "train"}
+    }
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Network Architecture Connection
+
+```
+    CLASSIFICATION: INPUT → OUTPUT → LOSS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    INPUT:
+    ──────
+    
+    Image tensor: [Batch, Channels, Height, Width]
+                  [B, 3, 224, 224]  for RGB
+                  [B, 1, 224, 224]  for grayscale (X-ray, CT)
+    
+    
+    NETWORK FLOW:
+    ─────────────
+    
+    Input Image                    Backbone                      Head
+    [B, 3, 224, 224]              (Feature Extractor)           (Classifier)
+           │                              │                          │
+           ▼                              │                          │
+    ┌─────────────┐                       │                          │
+    │             │                       │                          │
+    │  🖼️ Image   │                       │                          │
+    │             │                       │                          │
+    └──────┬──────┘                       │                          │
+           │                              │                          │
+           ▼                              ▼                          │
+    ┌─────────────────────────────────────────────────┐              │
+    │                                                 │              │
+    │              BACKBONE (ResNet, etc.)            │              │
+    │                                                 │              │
+    │   Conv ──► Conv ──► Conv ──► ... ──► Conv      │              │
+    │                                      │         │              │
+    │                               [B, 2048, 7, 7]  │              │
+    │                                      │         │              │
+    │                              Global Avg Pool   │              │
+    │                                      │         │              │
+    │                               [B, 2048]        │              │
+    │                                                 │              │
+    └─────────────────────────────────────┬───────────┘              │
+                                          │                          │
+                                          ▼                          ▼
+                               ┌─────────────────────────────────────────┐
+                               │              OUTPUT HEAD               │
+                               │                                         │
+                               │   Linear(2048, num_classes)             │
+                               │              │                          │
+                               │              ▼                          │
+                               │        [B, num_classes]                 │
+                               │              │                          │
+                               │              ▼                          │
+                               │   ┌─────────────────────────────────┐   │
+                               │   │  Softmax (single-label)         │   │
+                               │   │     OR                          │   │
+                               │   │  Sigmoid (multi-label)          │   │
+                               │   └─────────────────────────────────┘   │
+                               │                                         │
+                               └──────────────────┬──────────────────────┘
+                                                  │
+                                                  ▼
+                                           PREDICTION
+                                         [B, num_classes]
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    OUTPUT LAYER DETAIL:
+    ────────────────────
+    
+    
+    Single-Label (Softmax):           Multi-Label (Sigmoid):
+    ───────────────────────           ──────────────────────
+    
+    Logits: [2.1, 0.5, -1.2]          Logits: [2.1, 0.5, -1.2]
+                │                                  │
+                ▼                                  ▼
+            Softmax                           Sigmoid (per class)
+                │                                  │
+                ▼                                  ▼
+    Probs: [0.75, 0.15, 0.10]         Probs: [0.89, 0.62, 0.23]
+            ─────────────────                ─────────────────
+            Sum = 1.0                        Each independent!
+            (mutually exclusive)             (can all be 1)
+    
+    
+    Prediction:                       Prediction:
+    argmax → Class 0 (cat)            threshold(0.5) → [1, 1, 0]
+                                      (cat AND dog present)
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Loss Functions
+
+```
+    CLASSIFICATION LOSS FUNCTIONS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    SINGLE-LABEL: Cross-Entropy Loss
+    ─────────────────────────────────
+    
+    Ground Truth (one-hot):    y = [0, 1, 0]    (class 1 = dog)
+    Prediction (softmax):      ŷ = [0.1, 0.8, 0.1]
+    
+    
+    CE Loss = -Σ yᵢ × log(ŷᵢ)
+            = -(0×log(0.1) + 1×log(0.8) + 0×log(0.1))
+            = -log(0.8)
+            = 0.223
+    
+    
+    PyTorch:
+    ────────
+    loss_fn = nn.CrossEntropyLoss()
+    loss = loss_fn(logits, target)  # target is class INDEX, not one-hot!
+    
+    Note: CrossEntropyLoss applies Softmax internally!
+          Pass raw logits, NOT softmax output.
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    MULTI-LABEL: Binary Cross-Entropy Loss
+    ──────────────────────────────────────
+    
+    Ground Truth:    y = [1, 0, 1, 0]    (classes 0 and 2 present)
+    Prediction:      ŷ = [0.9, 0.2, 0.8, 0.1]
+    
+    
+    BCE Loss = -1/C × Σ [yᵢ×log(ŷᵢ) + (1-yᵢ)×log(1-ŷᵢ)]
+    
+    Calculated per class, then averaged.
+    
+    
+    PyTorch:
+    ────────
+    loss_fn = nn.BCEWithLogitsLoss()  # Sigmoid + BCE combined
+    loss = loss_fn(logits, target.float())  # target as float tensor
+    
+    Note: BCEWithLogitsLoss applies Sigmoid internally!
+          Pass raw logits.
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## PyTorch Implementation Example
+
+```python
+# CLASSIFICATION: Complete Data + Model Connection
+# ══════════════════════════════════════════════════════════════════════════════
+
+import torch
+import torch.nn as nn
+from torchvision import models, transforms
+from torch.utils.data import Dataset, DataLoader
+import pandas as pd
+from PIL import Image
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DATASET: Connects Ground Truth Labels to PyTorch
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ClassificationDataset(Dataset):
+    """
+    Ground Truth Format: CSV with columns [filename, label]
+    """
+    def __init__(self, csv_path, img_dir, transform=None):
+        self.df = pd.read_csv(csv_path)
+        self.img_dir = img_dir
+        self.transform = transform
+        
+        # Create label mapping: "cat" → 0, "dog" → 1, etc.
+        self.classes = sorted(self.df['label'].unique())
+        self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
+        
+    def __len__(self):
+        return len(self.df)
+    
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        
+        # Load image
+        img_path = f"{self.img_dir}/{row['filename']}"
+        image = Image.open(img_path).convert('RGB')
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        # Ground truth: Convert string label to integer index
+        label = self.class_to_idx[row['label']]
+        
+        return image, label  # [C, H, W], scalar
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MODEL: Output Layer Matches Ground Truth Structure
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ClassificationModel(nn.Module):
+    def __init__(self, num_classes, pretrained=True):
+        super().__init__()
+        
+        # Backbone: Extract features
+        self.backbone = models.resnet50(pretrained=pretrained)
+        
+        # Remove original FC layer
+        num_features = self.backbone.fc.in_features  # 2048 for ResNet50
+        
+        # NEW Head: Output num_classes logits
+        # This MUST match the number of classes in ground truth!
+        self.backbone.fc = nn.Linear(num_features, num_classes)
+        
+    def forward(self, x):
+        # Input:  [B, 3, 224, 224]
+        # Output: [B, num_classes]  ← Raw logits
+        return self.backbone(x)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TRAINING: Connecting Prediction ↔ Ground Truth via Loss
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Setup
+num_classes = 3  # cat, dog, bird
+model = ClassificationModel(num_classes=num_classes)
+criterion = nn.CrossEntropyLoss()  # For single-label
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+
+# Training step
+for images, labels in dataloader:
+    # images: [B, 3, 224, 224]
+    # labels: [B] - integer class indices (e.g., [0, 2, 1, 0])
+    
+    # Forward pass
+    logits = model(images)  # [B, num_classes]
+    
+    # Loss: Compare prediction to ground truth
+    loss = criterion(logits, labels)  # CrossEntropyLoss expects indices
+    
+    # Backward pass
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+# ══════════════════════════════════════════════════════════════════════════════
+```
+
+
+---
+
+# 2️⃣ Segmentation: Image → Pixel-wise Mask
+
+## Ground Truth Structure
+
+```
+    SEGMENTATION GROUND TRUTH
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    Task: Assign a class label to EVERY PIXEL
+    
+    
+    Input Image                         Ground Truth Mask
+    (H × W × 3)                         (H × W) - same spatial size!
+    
+    ┌─────────────────────┐             ┌─────────────────────┐
+    │                     │             │ 0  0  0  0  0  0  0 │
+    │   ┌─────────┐       │             │ 0  1  1  1  1  0  0 │
+    │   │         │       │             │ 0  1  1  1  1  1  0 │
+    │   │  Liver  │       │     ──►     │ 0  1  1  1  1  1  0 │
+    │   │    ●    │       │             │ 0  1  1  2  2  1  0 │
+    │   │  tumor  │       │             │ 0  0  1  2  2  0  0 │
+    │   └─────────┘       │             │ 0  0  0  0  0  0  0 │
+    │                     │             │                     │
+    └─────────────────────┘             └─────────────────────┘
+    
+                                        0 = Background
+                                        1 = Liver
+                                        2 = Tumor
+    
+    
+    The mask is essentially a "classification map" where each pixel
+    has its own class label!
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Label Representation & File Formats
+
+```
+    SEGMENTATION MASK FORMATS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 1: Integer Mask (Most Common)
+    ─────────────────────────────────────
+    
+    Each pixel value = class index
+    
+    ┌───────────────────────────────────┐
+    │ 0  0  0  0  0  0  0  0  0  0  0  │     0 = Background
+    │ 0  0  1  1  1  1  1  0  0  0  0  │     1 = Class 1 (Liver)
+    │ 0  1  1  1  1  1  1  1  0  0  0  │     2 = Class 2 (Tumor)
+    │ 0  1  1  1  2  2  1  1  1  0  0  │     3 = Class 3 (Vessel)
+    │ 0  1  1  2  2  2  2  1  1  0  0  │     ...
+    │ 0  0  1  1  2  2  1  1  0  0  0  │     255 = Ignore (optional)
+    │ 0  0  0  1  1  1  1  0  0  0  0  │
+    │ 0  0  0  0  0  0  0  0  0  0  0  │
+    └───────────────────────────────────┘
+    
+    File type: PNG (8-bit or 16-bit), TIFF, NPY
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 2: Binary Mask (Single Class / Per-Class)
+    ─────────────────────────────────────────────────
+    
+    One mask per class (0 = absent, 1 = present)
+    
+    Liver Mask:                    Tumor Mask:
+    ┌───────────────────┐          ┌───────────────────┐
+    │ 0  0  0  0  0  0  │          │ 0  0  0  0  0  0  │
+    │ 0  1  1  1  1  0  │          │ 0  0  0  0  0  0  │
+    │ 0  1  1  1  1  1  │          │ 0  0  0  1  1  0  │
+    │ 0  1  1  1  1  1  │          │ 0  0  1  1  1  1  │
+    │ 0  0  1  1  1  0  │          │ 0  0  0  1  1  0  │
+    │ 0  0  0  0  0  0  │          │ 0  0  0  0  0  0  │
+    └───────────────────┘          └───────────────────┘
+    
+    Can be stacked: [num_classes, H, W]
+    File type: PNG, NPY, NIfTI (.nii.gz for medical)
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 3: NIfTI (Medical 3D Volumes)
+    ─────────────────────────────────────
+    
+    Standard for CT/MRI segmentation:
+    
+    dataset/
+    ├── imagesTr/                   ← Training images
+    │   ├── case_001_0000.nii.gz    (0000 = first modality)
+    │   ├── case_001_0001.nii.gz    (0001 = second modality, if any)
+    │   ├── case_002_0000.nii.gz
+    │   └── ...
+    │
+    ├── labelsTr/                   ← Training labels (same name!)
+    │   ├── case_001.nii.gz         Integer mask: 0=bg, 1=organ, 2=lesion
+    │   ├── case_002.nii.gz
+    │   └── ...
+    │
+    └── dataset.json                ← Metadata
+    
+    
+    This is the nnU-Net / Medical Segmentation Decathlon format!
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 4: COCO Segmentation (Polygons)
+    ──────────────────────────────────────
+    
+    annotations.json:
+    {
+        "images": [
+            {"id": 1, "file_name": "img_001.jpg", "height": 512, "width": 512}
+        ],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "segmentation": [[x1,y1, x2,y2, x3,y3, ...]],  ← Polygon points
+                "area": 1234,
+                "bbox": [x, y, w, h]
+            }
+        ],
+        "categories": [
+            {"id": 1, "name": "liver"},
+            {"id": 2, "name": "tumor"}
+        ]
+    }
+    
+    Polygons are converted to masks during training.
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    DIRECTORY STRUCTURE EXAMPLES:
+    ─────────────────────────────
+    
+    
+    Simple Paired Structure:
+    
+    dataset/
+    ├── images/
+    │   ├── img_001.png
+    │   ├── img_002.png
+    │   └── ...
+    └── masks/
+        ├── img_001.png          ← Same filename!
+        ├── img_002.png
+        └── ...
+    
+    
+    Medical (nnU-Net style):
+    
+    dataset/
+    ├── imagesTr/
+    │   └── case_XXX_0000.nii.gz
+    ├── labelsTr/
+    │   └── case_XXX.nii.gz
+    ├── imagesTs/
+    │   └── case_XXX_0000.nii.gz
+    └── dataset.json
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Network Architecture Connection
+
+```
+    SEGMENTATION: INPUT → OUTPUT → LOSS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    INPUT:
+    ──────
+    
+    Image tensor: [Batch, Channels, Height, Width]
+                  [B, 3, 256, 256]  or [B, 1, 256, 256]
+    
+    
+    OUTPUT (must match mask dimensions!):
+    ─────────────────────────────────────
+    
+    Prediction: [Batch, num_classes, Height, Width]
+                [B, C, 256, 256]
+                
+    Each spatial location has C class scores (like per-pixel classification!)
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    U-NET ARCHITECTURE FLOW:
+    ────────────────────────
+    
+    
+    Input                              Output
+    [B, 1, 256, 256]                   [B, num_classes, 256, 256]
+          │                                   ▲
+          ▼                                   │
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                                                                         │
+    │     ENCODER                                    DECODER                  │
+    │     ────────                                   ───────                  │
+    │                                                                         │
+    │     [B,1,256,256]                             [B,64,256,256]            │
+    │          │                                         ▲                    │
+    │     Conv Block                                     │ Up + Concat        │
+    │          │                                         │                    │
+    │     [B,64,256,256] ─────────────────────────────►  │                    │
+    │          │                                         │                    │
+    │     MaxPool                                   Conv Block                │
+    │          │                                         ▲                    │
+    │     [B,64,128,128]                                 │                    │
+    │          │                                         │ Up + Concat        │
+    │     Conv Block                                     │                    │
+    │          │                                         │                    │
+    │     [B,128,128,128] ───────────────────────────►   │                    │
+    │          │                                         │                    │
+    │          ▼                                         │                    │
+    │         ...         BOTTLENECK        ...          │                    │
+    │                    [B,512,16,16]                   │                    │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+          │                                                   │
+          │                                                   │
+          ▼                                                   ▼
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                         FINAL OUTPUT LAYER                              │
+    │                                                                         │
+    │     Conv2d(64, num_classes, kernel_size=1)                              │
+    │                                                                         │
+    │     [B, 64, 256, 256]  ──────►  [B, num_classes, 256, 256]             │
+    │                                                                         │
+    │     1×1 convolution changes channels from 64 to num_classes            │
+    │     while preserving spatial dimensions!                                │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    THE KEY: 1×1 CONVOLUTION AS OUTPUT LAYER
+    ────────────────────────────────────────
+    
+    
+    Input Feature Map                    Output Logits
+    [B, 64, H, W]                        [B, num_classes, H, W]
+    
+    At each spatial location (h, w):
+    
+         64 channels                      num_classes channels
+         ┌───────────┐                    ┌───────────┐
+         │ f1        │                    │ logit_0   │  ← Background
+         │ f2        │     1×1 Conv       │ logit_1   │  ← Class 1
+         │ f3        │    ──────────►     │ logit_2   │  ← Class 2
+         │ ...       │    (64 → C)        │ ...       │
+         │ f64       │                    │ logit_C   │  ← Class C
+         └───────────┘                    └───────────┘
+    
+    This is like running a small classification network at EVERY pixel!
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    CONVERTING LOGITS TO PREDICTIONS:
+    ──────────────────────────────────
+    
+    
+    Output logits: [B, C, H, W]
+                        │
+                        ▼
+                   Softmax (dim=1)      ← Along class dimension
+                        │
+                        ▼
+    Probabilities: [B, C, H, W]         ← Each pixel sums to 1 across classes
+                        │
+                        ▼
+                   Argmax (dim=1)
+                        │
+                        ▼
+    Prediction:    [B, H, W]            ← Integer class per pixel
+    
+    
+    Example at one pixel location:
+    
+    Logits:       [2.1, 0.5, -1.2]     (3 classes)
+                        │
+                  Softmax
+                        │
+                        ▼
+    Probabilities: [0.75, 0.15, 0.10]   (sum = 1)
+                        │
+                  Argmax
+                        │
+                        ▼
+    Prediction:    0                    (class 0 = background)
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Loss Functions
+
+```
+    SEGMENTATION LOSS FUNCTIONS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    1. PIXEL-WISE CROSS-ENTROPY LOSS
+    ─────────────────────────────────
+    
+    Same as classification, but applied to EVERY pixel!
+    
+    
+    Prediction: [B, C, H, W]       Ground Truth: [B, H, W]
+    (logits)                       (integer class indices)
+    
+    
+    Loss = Average of CE loss over all pixels
+    
+         1
+    L = ───── × Σ   Σ   CE(pred[b,:,h,w], target[b,h,w])
+        B×H×W   b  h,w
+    
+    
+    PyTorch:
+    ────────
+    criterion = nn.CrossEntropyLoss()
+    
+    # pred: [B, C, H, W] - logits
+    # mask: [B, H, W] - integer labels
+    loss = criterion(pred, mask)
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    2. DICE LOSS (Medical Imaging Favorite!)
+    ────────────────────────────────────────
+    
+    Handles class imbalance better than CE
+    
+    
+                2 × |Prediction ∩ Ground Truth|
+    Dice Score = ──────────────────────────────────
+                 |Prediction| + |Ground Truth|
+    
+    
+    Dice Loss = 1 - Dice Score
+    
+    
+    Soft Dice (differentiable):
+    
+                    2 × Σ(pᵢ × gᵢ) + ε
+    Soft Dice = ────────────────────────────
+                  Σpᵢ + Σgᵢ + ε
+    
+    Where:
+    - pᵢ = predicted probability at pixel i
+    - gᵢ = ground truth (0 or 1) at pixel i
+    - ε = smoothing factor (e.g., 1e-5)
+    
+    
+    PyTorch Implementation:
+    ───────────────────────
+    def dice_loss(pred, target, smooth=1e-5):
+        # pred: [B, C, H, W] after softmax
+        # target: [B, C, H, W] one-hot encoded
+        
+        intersection = (pred * target).sum(dim=(2, 3))
+        union = pred.sum(dim=(2, 3)) + target.sum(dim=(2, 3))
+        
+        dice = (2 * intersection + smooth) / (union + smooth)
+        return 1 - dice.mean()
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    3. COMBINED LOSS (Most Common in Medical)
+    ─────────────────────────────────────────
+    
+    Loss = α × CE Loss + β × Dice Loss
+    
+    Typically: α = 1.0, β = 1.0
+    
+    CE handles pixel-wise accuracy
+    Dice handles region overlap (class imbalance)
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## PyTorch Implementation Example
+
+```python
+# SEGMENTATION: Complete Data + Model Connection
+# ══════════════════════════════════════════════════════════════════════════════
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import Dataset
+import numpy as np
+from PIL import Image
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DATASET: Connects Ground Truth Masks to PyTorch
+# ──────────────────────────────────────────────────────────────────────────────
+
+class SegmentationDataset(Dataset):
+    """
+    Ground Truth Format: 
+    - Images in /images folder
+    - Masks in /masks folder (same filename)
+    - Mask: PNG with integer values (0=bg, 1=class1, 2=class2, ...)
+    """
+    def __init__(self, image_dir, mask_dir, transform=None):
+        self.image_dir = image_dir
+        self.mask_dir = mask_dir
+        self.transform = transform
+        self.images = sorted(os.listdir(image_dir))
+        
+    def __len__(self):
+        return len(self.images)
+    
+    def __getitem__(self, idx):
+        # Load image
+        img_path = f"{self.image_dir}/{self.images[idx]}"
+        image = Image.open(img_path).convert('RGB')
+        
+        # Load mask (ground truth)
+        mask_path = f"{self.mask_dir}/{self.images[idx]}"
+        mask = Image.open(mask_path)  # Keep as single channel!
+        
+        # Convert to numpy/tensor
+        image = np.array(image)
+        mask = np.array(mask)  # [H, W] with integer class values
+        
+        if self.transform:
+            # Apply same transform to both image and mask!
+            augmented = self.transform(image=image, mask=mask)
+            image = augmented['image']
+            mask = augmented['mask']
+        
+        # Convert to tensor
+        image = torch.from_numpy(image).permute(2, 0, 1).float() / 255.0
+        mask = torch.from_numpy(mask).long()  # [H, W] - integer labels
+        
+        return image, mask  # [C, H, W], [H, W]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MODEL: U-Net with Output Matching Mask Dimensions
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
+            nn.ReLU(inplace=True)
+        )
+    
+    def forward(self, x):
+        return self.conv(x)
+
+
+class UNet(nn.Module):
+    def __init__(self, in_channels=3, num_classes=3):
+        super().__init__()
+        
+        # Encoder
+        self.enc1 = ConvBlock(in_channels, 64)
+        self.enc2 = ConvBlock(64, 128)
+        self.enc3 = ConvBlock(128, 256)
+        self.enc4 = ConvBlock(256, 512)
+        
+        # Bottleneck
+        self.bottleneck = ConvBlock(512, 1024)
+        
+        # Decoder
+        self.up4 = nn.ConvTranspose2d(1024, 512, 2, stride=2)
+        self.dec4 = ConvBlock(1024, 512)
+        self.up3 = nn.ConvTranspose2d(512, 256, 2, stride=2)
+        self.dec3 = ConvBlock(512, 256)
+        self.up2 = nn.ConvTranspose2d(256, 128, 2, stride=2)
+        self.dec2 = ConvBlock(256, 128)
+        self.up1 = nn.ConvTranspose2d(128, 64, 2, stride=2)
+        self.dec1 = ConvBlock(128, 64)
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL: Final output layer
+        # Must output [B, num_classes, H, W] to match mask dimensions!
+        # ═══════════════════════════════════════════════════════════════════
+        self.final = nn.Conv2d(64, num_classes, kernel_size=1)
+        
+    def forward(self, x):
+        # Encoder
+        e1 = self.enc1(x)
+        e2 = self.enc2(F.max_pool2d(e1, 2))
+        e3 = self.enc3(F.max_pool2d(e2, 2))
+        e4 = self.enc4(F.max_pool2d(e3, 2))
+        
+        # Bottleneck
+        b = self.bottleneck(F.max_pool2d(e4, 2))
+        
+        # Decoder with skip connections
+        d4 = self.dec4(torch.cat([self.up4(b), e4], dim=1))
+        d3 = self.dec3(torch.cat([self.up3(d4), e3], dim=1))
+        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))
+        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))
+        
+        # Final 1x1 conv: [B, 64, H, W] → [B, num_classes, H, W]
+        return self.final(d1)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TRAINING: Connecting Prediction ↔ Ground Truth
+# ──────────────────────────────────────────────────────────────────────────────
+
+num_classes = 3  # background, liver, tumor
+model = UNet(in_channels=1, num_classes=num_classes)  # Grayscale input
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+
+for images, masks in dataloader:
+    # images: [B, 1, 256, 256]
+    # masks:  [B, 256, 256] - integer class indices
+    
+    # Forward pass
+    logits = model(images)  # [B, num_classes, 256, 256]
+    
+    # Loss: CrossEntropyLoss expects:
+    #   - pred: [B, C, H, W]
+    #   - target: [B, H, W] (integer class indices)
+    loss = criterion(logits, masks)
+    
+    # Backward
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    
+    # Get predictions
+    preds = torch.argmax(logits, dim=1)  # [B, H, W] - same shape as mask!
+
+# ══════════════════════════════════════════════════════════════════════════════
+```
+
+
+---
+
+# 3️⃣ Object Detection: Image → Bounding Boxes + Classes
+
+## Ground Truth Structure
+
+```
+    OBJECT DETECTION GROUND TRUTH
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    Task: For each object, provide:
+          1. Bounding box coordinates (WHERE)
+          2. Class label (WHAT)
+    
+    
+    Input Image                         Ground Truth Annotations
+    
+    ┌─────────────────────────────┐     ┌─────────────────────────────────────┐
+    │                             │     │                                     │
+    │    ┌─────────┐              │     │  Object 1:                          │
+    │    │   🐕    │   ┌──────┐   │     │    class: "dog"                     │
+    │    │   Dog   │   │  🐱  │   │     │    bbox: [x1, y1, x2, y2]           │
+    │    └─────────┘   │ Cat  │   │     │          [50, 30, 200, 180]         │
+    │                  └──────┘   │     │                                     │
+    │                             │     │  Object 2:                          │
+    │                             │     │    class: "cat"                     │
+    │                             │     │    bbox: [x1, y1, x2, y2]           │
+    │                             │     │          [250, 50, 350, 150]        │
+    │                             │     │                                     │
+    └─────────────────────────────┘     └─────────────────────────────────────┘
+    
+    
+    Variable number of objects per image!
+    (Unlike classification: 1 label, or segmentation: fixed HxW)
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Label Representation & File Formats
+
+```
+    OBJECT DETECTION ANNOTATION FORMATS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 1: PASCAL VOC (XML)
+    ──────────────────────────
+    
+    Directory structure:
+    dataset/
+    ├── JPEGImages/
+    │   ├── 000001.jpg
+    │   └── ...
+    ├── Annotations/                     ← XML files
+    │   ├── 000001.xml
+    │   └── ...
+    └── ImageSets/
+        └── Main/
+            ├── train.txt               ← List of image IDs
+            └── val.txt
+    
+    
+    000001.xml:
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ <annotation>                                                             │
+    │     <filename>000001.jpg</filename>                                      │
+    │     <size>                                                               │
+    │         <width>500</width>                                               │
+    │         <height>375</height>                                             │
+    │         <depth>3</depth>                                                 │
+    │     </size>                                                              │
+    │     <object>                                                             │
+    │         <name>dog</name>                                                 │
+    │         <bndbox>                                                         │
+    │             <xmin>50</xmin>      ← Top-left corner                       │
+    │             <ymin>30</ymin>                                              │
+    │             <xmax>200</xmax>     ← Bottom-right corner                   │
+    │             <ymax>180</ymax>                                             │
+    │         </bndbox>                                                        │
+    │     </object>                                                            │
+    │     <object>                                                             │
+    │         <name>cat</name>                                                 │
+    │         <bndbox>                                                         │
+    │             <xmin>250</xmin>                                             │
+    │             <ymin>50</ymin>                                              │
+    │             <xmax>350</xmax>                                             │
+    │             <ymax>150</ymax>                                             │
+    │         </bndbox>                                                        │
+    │     </object>                                                            │
+    │ </annotation>                                                            │
+    └──────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 2: COCO (JSON) - Most Common Today
+    ─────────────────────────────────────────
+    
+    Directory structure:
+    dataset/
+    ├── images/
+    │   ├── train/
+    │   │   ├── img_00001.jpg
+    │   │   └── ...
+    │   └── val/
+    └── annotations/
+        ├── instances_train.json        ← All train annotations in ONE file
+        └── instances_val.json
+    
+    
+    instances_train.json:
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ {                                                                        │
+    │     "images": [                                                          │
+    │         {                                                                │
+    │             "id": 1,                                                     │
+    │             "file_name": "img_00001.jpg",                                │
+    │             "width": 640,                                                │
+    │             "height": 480                                                │
+    │         },                                                               │
+    │         ...                                                              │
+    │     ],                                                                   │
+    │                                                                          │
+    │     "annotations": [                                                     │
+    │         {                                                                │
+    │             "id": 1,                    ← Unique annotation ID           │
+    │             "image_id": 1,              ← Links to image                 │
+    │             "category_id": 1,           ← Links to category              │
+    │             "bbox": [50, 30, 150, 150], ← [x, y, width, height]         │
+    │             "area": 22500,              ← bbox area                      │
+    │             "iscrowd": 0                                                 │
+    │         },                                                               │
+    │         {                                                                │
+    │             "id": 2,                                                     │
+    │             "image_id": 1,              ← Same image, different object   │
+    │             "category_id": 2,                                            │
+    │             "bbox": [250, 50, 100, 100],                                 │
+    │             "area": 10000,                                               │
+    │             "iscrowd": 0                                                 │
+    │         },                                                               │
+    │         ...                                                              │
+    │     ],                                                                   │
+    │                                                                          │
+    │     "categories": [                                                      │
+    │         {"id": 1, "name": "dog"},                                        │
+    │         {"id": 2, "name": "cat"},                                        │
+    │         {"id": 3, "name": "bird"}                                        │
+    │     ]                                                                    │
+    │ }                                                                        │
+    └──────────────────────────────────────────────────────────────────────────┘
+    
+    COCO bbox format: [x_min, y_min, width, height]
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FORMAT 3: YOLO (TXT) - Simple & Popular
+    ───────────────────────────────────────
+    
+    Directory structure:
+    dataset/
+    ├── images/
+    │   ├── train/
+    │   │   ├── img_001.jpg
+    │   │   └── ...
+    │   └── val/
+    ├── labels/                          ← TXT files, same name as images
+    │   ├── train/
+    │   │   ├── img_001.txt
+    │   │   └── ...
+    │   └── val/
+    └── data.yaml                        ← Dataset config
+    
+    
+    img_001.txt (one line per object):
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ 0 0.45 0.35 0.30 0.40                                                    │
+    │ 1 0.75 0.25 0.20 0.25                                                    │
+    │                                                                          │
+    │ Format: <class_id> <x_center> <y_center> <width> <height>               │
+    │                                                                          │
+    │ All values NORMALIZED to [0, 1] relative to image dimensions!           │
+    │                                                                          │
+    │ Line 1: class=0 (dog), center at (0.45, 0.35), size (0.30 × 0.40)       │
+    │ Line 2: class=1 (cat), center at (0.75, 0.25), size (0.20 × 0.25)       │
+    └──────────────────────────────────────────────────────────────────────────┘
+    
+    
+    data.yaml:
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │ train: ./images/train                                                    │
+    │ val: ./images/val                                                        │
+    │                                                                          │
+    │ nc: 3                              ← Number of classes                   │
+    │ names: ['dog', 'cat', 'bird']      ← Class names                         │
+    └──────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    BBOX FORMAT COMPARISON:
+    ───────────────────────
+    
+    ┌─────────────┬─────────────────────────┬──────────────────────────────────┐
+    │   Format    │       Representation    │          Example                 │
+    ├─────────────┼─────────────────────────┼──────────────────────────────────┤
+    │  PASCAL VOC │  [xmin, ymin, xmax, ymax] │  [50, 30, 200, 180]  (pixels)  │
+    │             │  (corner coordinates)   │                                  │
+    ├─────────────┼─────────────────────────┼──────────────────────────────────┤
+    │    COCO     │  [x, y, width, height]  │  [50, 30, 150, 150]  (pixels)    │
+    │             │  (top-left + size)      │                                  │
+    ├─────────────┼─────────────────────────┼──────────────────────────────────┤
+    │    YOLO     │  [cx, cy, w, h]         │  [0.45, 0.35, 0.3, 0.4]          │
+    │             │  (center + size)        │  (normalized 0-1)                │
+    └─────────────┴─────────────────────────┴──────────────────────────────────┘
+    
+    
+           PASCAL VOC                    COCO                      YOLO
+           
+    ┌─────────────────────┐     ┌─────────────────────┐    ┌─────────────────────┐
+    │  (xmin,ymin)        │     │  (x,y)              │    │                     │
+    │    ●────────────┐   │     │    ●────────────┐   │    │         ●          │
+    │    │            │   │     │    │     w      │   │    │    (cx,cy)         │
+    │    │   Object   │   │     │  h │   Object   │   │    │    center          │
+    │    │            │   │     │    │            │   │    │                     │
+    │    └────────────●   │     │    └────────────┘   │    │  w=0.3, h=0.4      │
+    │            (xmax,ymax)    │                     │    │  (normalized)      │
+    └─────────────────────┘     └─────────────────────┘    └─────────────────────┘
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Network Architecture Connection
+
+```
+    OBJECT DETECTION: INPUT → OUTPUT → LOSS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    UNIQUE CHALLENGE: Variable number of outputs per image!
+    ───────────────────────────────────────────────────────
+    
+    Classification: 1 output per image         [num_classes]
+    Segmentation:   Fixed H×W outputs          [num_classes, H, W]
+    Detection:      VARIABLE N outputs         N × [class + 4 coords]
+    
+    
+    Solution: Dense predictions over anchors/grid + post-processing
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FASTER R-CNN OUTPUT STRUCTURE:
+    ──────────────────────────────
+    
+    
+    Input Image
+    [B, 3, H, W]
+          │
+          ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                         BACKBONE (ResNet + FPN)                         │
+    │                                                                         │
+    │   Multi-scale feature maps: P2, P3, P4, P5, P6                          │
+    └────────────────────────────────────┬────────────────────────────────────┘
+                                         │
+                                         ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                     REGION PROPOSAL NETWORK (RPN)                       │
+    │                                                                         │
+    │   At each anchor location, predict:                                     │
+    │   • Objectness score (object vs background)    [2 scores]               │
+    │   • Box refinement (dx, dy, dw, dh)           [4 values]                │
+    │                                                                         │
+    │   Output: ~2000 proposals (filtered by NMS)                             │
+    └────────────────────────────────────┬────────────────────────────────────┘
+                                         │
+                                         ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                         ROI HEADS                                       │
+    │                                                                         │
+    │   For each proposal:                                                    │
+    │                                                                         │
+    │   ┌───────────────────────┐    ┌───────────────────────┐                │
+    │   │   Classification      │    │   Box Regression      │                │
+    │   │   Head                │    │   Head                │                │
+    │   │                       │    │                       │                │
+    │   │   FC → FC →           │    │   FC → FC →           │                │
+    │   │   Linear(num_classes+1)    │   Linear(4 * num_classes)              │
+    │   │                       │    │   or Linear(4)        │                │
+    │   │   +1 for background!  │    │                       │                │
+    │   └───────────┬───────────┘    └───────────┬───────────┘                │
+    │               │                            │                            │
+    │               ▼                            ▼                            │
+    │        [N, num_classes+1]           [N, 4] or [N, num_classes×4]        │
+    │        Class scores                  Box deltas                         │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    YOLO OUTPUT STRUCTURE:
+    ──────────────────────
+    
+    
+    Input Image                           Output Tensor
+    [B, 3, 416, 416]                      [B, S, S, A × (5 + C)]
+          │                               
+          ▼                               S = grid size (e.g., 13)
+    ┌─────────────────┐                   A = anchors per cell (e.g., 3)
+    │                 │                   C = num classes
+    │    BACKBONE     │                   5 = [x, y, w, h, objectness]
+    │    (Darknet)    │                   
+    │                 │                   
+    └────────┬────────┘                   
+             │                            
+             ▼                            
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                           DETECTION HEAD                                │
+    │                                                                         │
+    │   Conv layers → Final Conv: channels = A × (5 + C)                      │
+    │                                                                         │
+    │   Example: 3 anchors, 80 classes                                        │
+    │   Output channels = 3 × (5 + 80) = 255                                  │
+    │                                                                         │
+    │   Output shape: [B, 255, 13, 13]                                        │
+    │                                                                         │
+    └────────────────────────────────────┬────────────────────────────────────┘
+                                         │
+                                         ▼
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                                                                         │
+    │   Reshape to [B, 13, 13, 3, 85]                                         │
+    │                                                                         │
+    │   At each grid cell (i, j) and anchor (a):                              │
+    │                                                                         │
+    │   ┌────────────────────────────────────────────────────────────────┐    │
+    │   │  tx, ty  │  tw, th  │ objectness │  class_0 ... class_79      │    │
+    │   │  (2)     │  (2)     │    (1)     │         (80)               │    │
+    │   └────────────────────────────────────────────────────────────────┘    │
+    │       │           │           │               │                         │
+    │       ▼           ▼           ▼               ▼                         │
+    │    sigmoid     exp()      sigmoid         sigmoid                       │
+    │       │           │           │               │                         │
+    │       ▼           ▼           ▼               ▼                         │
+    │   Offset      Scale       P(obj)         P(class|obj)                   │
+    │   from        anchor                                                    │
+    │   grid cell                                                             │
+    │                                                                         │
+    │   Final bbox = decode(tx, ty, tw, th, anchor, grid_offset)              │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    ANCHOR-FREE (FCOS) OUTPUT STRUCTURE:
+    ────────────────────────────────────
+    
+    
+    Per-pixel prediction (like segmentation, but different outputs!)
+    
+    
+    Input Image                    Output at each FPN level
+    [B, 3, H, W]                   
+          │                        
+          ▼                        
+    ┌─────────────────┐           
+    │  Backbone + FPN │           
+    └────────┬────────┘           
+             │                     
+             ▼                     
+    Feature maps at each level     
+    (P3, P4, P5, P6, P7)          
+             │                     
+             ├──────────────────────────────────────────┐
+             │                                          │
+             ▼                                          ▼
+    ┌─────────────────────────┐              ┌─────────────────────────┐
+    │   Classification Head   │              │   Regression Head       │
+    │                         │              │                         │
+    │   Conv → Conv → Conv →  │              │   Conv → Conv → Conv →  │
+    │   Conv(num_classes)     │              │   Conv(4)               │
+    │                         │              │                         │
+    │   [B, C, H', W']        │              │   [B, 4, H', W']        │
+    │                         │              │   (l, t, r, b distances)│
+    └───────────┬─────────────┘              └───────────┬─────────────┘
+                │                                        │
+                │              ┌─────────────────────────┤
+                │              │                         │
+                │              ▼                         │
+                │   ┌─────────────────────────┐          │
+                │   │   Center-ness Head      │          │
+                │   │                         │          │
+                │   │   Conv(1)               │          │
+                │   │   [B, 1, H', W']        │          │
+                │   └─────────────────────────┘          │
+                │                                        │
+                └────────────────────┬───────────────────┘
+                                     │
+                                     ▼
+                              Decode boxes
+                              Apply NMS
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    KEY INSIGHT: TWO TYPES OF PREDICTIONS
+    ─────────────────────────────────────
+    
+    Detection models output TWO different things:
+    
+    1. CLASSIFICATION (discrete)
+       └── Which class is this object?
+       └── Output: class scores → Softmax/Sigmoid → Cross-Entropy Loss
+    
+    2. REGRESSION (continuous)
+       └── Where exactly is the bounding box?
+       └── Output: box coordinates → L1/Smooth L1/IoU Loss
+    
+    
+    This is fundamentally different from:
+    • Classification (only classification)
+    • Segmentation (only classification, but per-pixel)
+    
+    Detection combines BOTH classification AND regression!
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## Loss Functions
+
+```
+    OBJECT DETECTION LOSS FUNCTIONS
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    TOTAL LOSS = Classification Loss + Regression Loss + (Optional) Others
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    1. CLASSIFICATION LOSS
+    ──────────────────────
+    
+    Same as image classification, but applied to each anchor/proposal:
+    
+    • Cross-Entropy (for class prediction)
+    • Binary Cross-Entropy (for objectness)
+    • Focal Loss (for class imbalance in one-stage detectors)
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    2. BOX REGRESSION LOSSES
+    ────────────────────────
+    
+    
+    a) Smooth L1 Loss (Huber Loss) - Most common
+    
+                 ┌ 0.5 × x²        if |x| < 1
+    Smooth_L1 = │
+                 └ |x| - 0.5       otherwise
+    
+    
+             │
+       Loss  │         L1 (linear)
+             │        ╱
+             │      ╱
+             │    ╱╲
+             │  ╱    ╲ L2 (quadratic)
+             │╱        ╲
+             └──────────────────► Error
+                   1
+    
+    Smooth L1 is:
+    • Less sensitive to outliers than L2 (MSE)
+    • Smoother than L1 near zero
+    
+    
+    Applied to box deltas:
+    
+    L_box = Smooth_L1(pred_dx - target_dx) + 
+            Smooth_L1(pred_dy - target_dy) +
+            Smooth_L1(pred_dw - target_dw) +
+            Smooth_L1(pred_dh - target_dh)
+    
+    
+    b) IoU-based Losses (newer, often better)
+    
+    GIoU Loss, DIoU Loss, CIoU Loss
+    
+    Directly optimize the IoU metric!
+    
+                         |A ∩ B|
+    IoU Loss = 1 - ─────────────────
+                      |A ∪ B|
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    FASTER R-CNN LOSS:
+    ──────────────────
+    
+    L_total = L_rpn_cls + L_rpn_box + L_roi_cls + L_roi_box
+    
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                                                                         │
+    │   RPN Loss:                                                             │
+    │   ─────────                                                             │
+    │   L_rpn_cls = BCE(objectness_pred, objectness_target)                   │
+    │   L_rpn_box = Smooth_L1(box_pred, box_target)  [only for positives]     │
+    │                                                                         │
+    │   ROI Head Loss:                                                        │
+    │   ──────────────                                                        │
+    │   L_roi_cls = CrossEntropy(class_pred, class_target)                    │
+    │   L_roi_box = Smooth_L1(box_pred, box_target)  [only for positives]     │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    YOLO LOSS:
+    ──────────
+    
+    L = λ_coord × L_box + L_obj + λ_noobj × L_noobj + L_class
+    
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                                                                         │
+    │   L_box = Σ[(x - x̂)² + (y - ŷ)² + (√w - √ŵ)² + (√h - √ĥ)²]            │
+    │           Only for cells with objects                                   │
+    │                                                                         │
+    │   L_obj = Σ[BCE(confidence, IoU_target)]                                │
+    │           For cells with objects                                        │
+    │                                                                         │
+    │   L_noobj = Σ[BCE(confidence, 0)]                                       │
+    │             For cells without objects (weighted down)                   │
+    │                                                                         │
+    │   L_class = Σ[BCE(class_pred, class_target)]                            │
+    │             Only for cells with objects                                 │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+## PyTorch Implementation Example
+
+```python
+# OBJECT DETECTION: Complete Data + Model Connection
+# ══════════════════════════════════════════════════════════════════════════════
+
+import torch
+import torchvision
+from torch.utils.data import Dataset
+from torchvision.models.detection import fasterrcnn_resnet50_fpn
+from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+import json
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DATASET: Connects Ground Truth Annotations to PyTorch
+# ──────────────────────────────────────────────────────────────────────────────
+
+class DetectionDataset(Dataset):
+    """
+    Ground Truth Format: COCO-style JSON
+    
+    Returns:
+        image: [C, H, W] tensor
+        target: dict with 'boxes', 'labels'
+    """
+    def __init__(self, img_dir, annotation_file, transforms=None):
+        self.img_dir = img_dir
+        self.transforms = transforms
+        
+        # Load COCO annotations
+        with open(annotation_file) as f:
+            coco = json.load(f)
+        
+        self.images = {img['id']: img for img in coco['images']}
+        self.categories = {cat['id']: cat['name'] for cat in coco['categories']}
+        
+        # Group annotations by image
+        self.annotations = {}
+        for ann in coco['annotations']:
+            img_id = ann['image_id']
+            if img_id not in self.annotations:
+                self.annotations[img_id] = []
+            self.annotations[img_id].append(ann)
+        
+        self.image_ids = list(self.images.keys())
+        
+    def __len__(self):
+        return len(self.image_ids)
+    
+    def __getitem__(self, idx):
+        img_id = self.image_ids[idx]
+        img_info = self.images[img_id]
+        
+        # Load image
+        img_path = f"{self.img_dir}/{img_info['file_name']}"
+        image = Image.open(img_path).convert('RGB')
+        
+        # Get annotations for this image
+        anns = self.annotations.get(img_id, [])
+        
+        # ═══════════════════════════════════════════════════════════════════
+        # GROUND TRUTH FORMAT for PyTorch detection models:
+        # ═══════════════════════════════════════════════════════════════════
+        
+        boxes = []
+        labels = []
+        
+        for ann in anns:
+            # COCO format: [x, y, width, height]
+            x, y, w, h = ann['bbox']
+            
+            # Convert to [x1, y1, x2, y2] format
+            boxes.append([x, y, x + w, y + h])
+            labels.append(ann['category_id'])
+        
+        # Convert to tensors
+        target = {
+            'boxes': torch.as_tensor(boxes, dtype=torch.float32),   # [N, 4]
+            'labels': torch.as_tensor(labels, dtype=torch.int64),   # [N]
+            'image_id': torch.tensor([img_id])
+        }
+        
+        # Handle empty annotations
+        if len(boxes) == 0:
+            target['boxes'] = torch.zeros((0, 4), dtype=torch.float32)
+            target['labels'] = torch.zeros((0,), dtype=torch.int64)
+        
+        if self.transforms:
+            image, target = self.transforms(image, target)
+        
+        # Convert image to tensor
+        image = torchvision.transforms.ToTensor()(image)
+        
+        return image, target
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# MODEL: Output Heads Match Ground Truth Structure
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_detection_model(num_classes):
+    """
+    Faster R-CNN with custom number of classes
+    
+    The model outputs:
+    - boxes: [N, 4] - predicted bounding boxes
+    - labels: [N] - predicted class labels
+    - scores: [N] - confidence scores
+    """
+    # Load pre-trained model
+    model = fasterrcnn_resnet50_fpn(pretrained=True)
+    
+    # Get the number of input features for the classifier
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # CRITICAL: Replace the head to match YOUR number of classes
+    # ═══════════════════════════════════════════════════════════════════════
+    # 
+    # FastRCNNPredictor has TWO output layers:
+    # 1. cls_score: Linear(in_features, num_classes)     ← Classification
+    # 2. bbox_pred: Linear(in_features, num_classes * 4) ← Box regression
+    #
+    # This matches the ground truth structure:
+    # - labels: [N] class indices
+    # - boxes: [N, 4] coordinates
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+    
+    return model
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TRAINING: Connecting Predictions ↔ Ground Truth
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Setup
+num_classes = 4  # 3 classes + 1 background
+model = get_detection_model(num_classes)
+optimizer = torch.optim.SGD(model.parameters(), lr=0.005, momentum=0.9)
+
+# Training loop
+model.train()  # Important! Detection models behave differently in train vs eval
+
+for images, targets in dataloader:
+    # images: list of [C, H, W] tensors (variable sizes allowed!)
+    # targets: list of dicts, each with:
+    #   - 'boxes': [N, 4] float tensor
+    #   - 'labels': [N] int64 tensor
+    
+    # Forward pass
+    # In training mode, model returns LOSS DICT, not predictions!
+    loss_dict = model(images, targets)
+    
+    # loss_dict contains:
+    # {
+    #     'loss_classifier': ...,     ← Classification loss (CrossEntropy)
+    #     'loss_box_reg': ...,        ← Box regression loss (Smooth L1)
+    #     'loss_objectness': ...,     ← RPN objectness loss
+    #     'loss_rpn_box_reg': ...     ← RPN box regression loss
+    # }
+    
+    # Total loss
+    losses = sum(loss for loss in loss_dict.values())
+    
+    # Backward
+    optimizer.zero_grad()
+    losses.backward()
+    optimizer.step()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INFERENCE: Getting Predictions
+# ──────────────────────────────────────────────────────────────────────────────
+
+model.eval()
+
+with torch.no_grad():
+    # In eval mode, model returns PREDICTIONS, not losses!
+    predictions = model(images)
+    
+    # predictions: list of dicts, each with:
+    # {
+    #     'boxes': [N, 4] - detected boxes
+    #     'labels': [N] - predicted classes
+    #     'scores': [N] - confidence scores
+    # }
+    
+    for pred in predictions:
+        boxes = pred['boxes']    # [N, 4]
+        labels = pred['labels']  # [N]
+        scores = pred['scores']  # [N]
+        
+        # Filter by confidence threshold
+        mask = scores > 0.5
+        boxes = boxes[mask]
+        labels = labels[mask]
+        scores = scores[mask]
+
+# ══════════════════════════════════════════════════════════════════════════════
+```
+
+
+---
+
+# 📊 Complete Summary: The Big Picture
+
+```
+    GROUND TRUTH ↔ ARCHITECTURE ↔ LOSS: Complete Comparison
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    ┌───────────────┬─────────────────────┬──────────────────────┬──────────────────────┐
+    │               │   CLASSIFICATION    │    SEGMENTATION      │   OBJECT DETECTION   │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  TASK         │  Whole image →      │  Every pixel →       │  Find objects →      │
+    │               │  single label       │  class label         │  box + class         │
+    │               │                     │                      │                      │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  GROUND       │  Integer class      │  Mask image          │  List of             │
+    │  TRUTH        │  index or           │  [H, W] with         │  {bbox, class}       │
+    │  FORMAT       │  multi-hot vector   │  integer values      │  per object          │
+    │               │                     │                      │                      │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  COMMON       │  • Folder structure │  • PNG masks         │  • COCO JSON         │
+    │  FILE         │  • CSV/TSV          │  • NIfTI (.nii.gz)   │  • PASCAL VOC XML    │
+    │  FORMATS      │  • JSON             │  • NPY arrays        │  • YOLO TXT          │
+    │               │                     │                      │                      │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  OUTPUT       │  [B, num_classes]   │  [B, num_classes,    │  Per anchor/pixel:   │
+    │  SHAPE        │                     │      H, W]           │  [cls] + [4 coords]  │
+    │               │  Fixed size         │  Same as input       │  Variable N outputs  │
+    │               │                     │  spatial dims        │                      │
+    │               │                     │                      │                      │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  FINAL        │  Linear(features,   │  Conv2d(features,    │  TWO heads:          │
+    │  LAYER(S)     │    num_classes)     │    num_classes,      │  • Linear(cls)       │
+    │               │                     │    kernel=1)         │  • Linear(4 coords)  │
+    │               │                     │                      │                      │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  ACTIVATION   │  Softmax (single)   │  Softmax (dim=1)     │  Softmax (cls)       │
+    │               │  Sigmoid (multi)    │  per pixel           │  + Raw/Exp (box)     │
+    │               │                     │                      │                      │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  LOSS         │  CrossEntropy       │  CrossEntropy        │  CE (cls) +          │
+    │  FUNCTION     │  or BCE             │  + Dice Loss         │  Smooth L1 (box)     │
+    │               │                     │  (combined)          │  or IoU Loss         │
+    │               │                     │                      │                      │
+    ├───────────────┼─────────────────────┼──────────────────────┼──────────────────────┤
+    │               │                     │                      │                      │
+    │  POST-        │  Argmax             │  Argmax (dim=1)      │  NMS                 │
+    │  PROCESSING   │  (threshold for     │                      │  Score threshold     │
+    │               │   multi-label)      │                      │                      │
+    │               │                     │                      │                      │
+    └───────────────┴─────────────────────┴──────────────────────┴──────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+```
+    VISUAL SUMMARY: Input → Output for Each Task
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    CLASSIFICATION:
+    ───────────────
+    
+    ┌─────────────┐         ┌─────────────┐         ┌─────────────────┐
+    │             │         │             │         │                 │
+    │    🐱       │   ──►   │   Network   │   ──►   │  [0.1, 0.8, 0.1]│
+    │             │         │   + FC      │         │   cat  dog bird │
+    │             │         │             │         │         ▲       │
+    └─────────────┘         └─────────────┘         └─────────┼───────┘
+    Input: [3,224,224]                              Output: [num_classes]
+                                                    GT: class index (1)
+    
+    
+    SEGMENTATION:
+    ─────────────
+    
+    ┌─────────────┐         ┌─────────────┐         ┌─────────────────┐
+    │             │         │             │         │ 0 0 0 0 0 0 0 0 │
+    │  [Liver]    │   ──►   │   U-Net     │   ──►   │ 0 1 1 1 1 0 0 0 │
+    │    [T]      │         │   + 1×1     │         │ 0 1 1 2 2 1 0 0 │
+    │             │         │   Conv      │         │ 0 0 1 1 1 0 0 0 │
+    └─────────────┘         └─────────────┘         └─────────────────┘
+    Input: [1,256,256]                              Output: [C,256,256]
+                                                    GT: mask [256,256]
+    
+    
+    OBJECT DETECTION:
+    ─────────────────
+    
+    ┌─────────────┐         ┌─────────────┐         ┌─────────────────┐
+    │             │         │             │         │ Box 1:          │
+    │  🐱    🐕   │   ──►   │  Faster     │   ──►   │  [50,30,200,180]│
+    │             │         │  R-CNN      │         │  class: dog     │
+    │             │         │  + NMS      │         │ Box 2:          │
+    └─────────────┘         └─────────────┘         │  [250,50,350,150│
+    Input: [3,H,W]                                  │  class: cat     │
+                                                    └─────────────────┘
+                                                    Output: N × [4 + cls]
+                                                    GT: list of {box,cls}
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
+
+
+## 🎓 Key Takeaways
+
+```
+    THE FUNDAMENTAL PRINCIPLE
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                                                                         │
+    │   The OUTPUT LAYER of your network must produce predictions in the      │
+    │   SAME STRUCTURE as your ground truth labels!                           │
+    │                                                                         │
+    │   • Classification: [num_classes] scores → matches class index GT       │
+    │   • Segmentation:   [num_classes, H, W]  → matches [H, W] mask GT       │
+    │   • Detection:      [N × (cls + 4)]      → matches list of {box, cls}   │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                                                                         │
+    │   The LOSS FUNCTION is the bridge that measures how different the       │
+    │   prediction is from the ground truth, enabling backpropagation.        │
+    │                                                                         │
+    │   • Cross-Entropy: for discrete class predictions                       │
+    │   • Smooth L1/IoU: for continuous box coordinate predictions            │
+    │   • Dice Loss: for handling class imbalance in segmentation             │
+    │                                                                         │
+    └─────────────────────────────────────────────────────────────────────────┘
+    
+    
+    ═══════════════════════════════════════════════════════════════════════════
+    
+    
+    When designing or using a model:
+    
+    1. UNDERSTAND your ground truth format
+    2. VERIFY the output layer matches this format
+    3. CHOOSE appropriate loss function(s)
+    4. IMPLEMENT proper data loading to feed both image AND labels
+    
+    
+    This completes the circle from DATA → MODEL → TRAINING! 🎯
+    
+    ═══════════════════════════════════════════════════════════════════════════
+```
