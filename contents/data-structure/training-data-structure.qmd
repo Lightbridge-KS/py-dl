@@ -52,7 +52,7 @@ This is the crucial link that ties everything together — understanding how **w
                                    │    LOSS     │
                                    │  Function   │
                                    │             │
-                                   │ L(ŷ, y)    │
+                                   │ L(ŷ, y)     │
                                    └──────┬──────┘
                                           │
                                           ▼
@@ -239,19 +239,19 @@ This is the crucial link that ties everything together — understanding how **w
     │                                                 │              │
     │              BACKBONE (ResNet, etc.)            │              │
     │                                                 │              │
-    │   Conv ──► Conv ──► Conv ──► ... ──► Conv      │              │
-    │                                      │         │              │
-    │                               [B, 2048, 7, 7]  │              │
-    │                                      │         │              │
-    │                              Global Avg Pool   │              │
-    │                                      │         │              │
-    │                               [B, 2048]        │              │
+    │   Conv ──► Conv ──► Conv ──► ... ──► Conv       │              │
+    │                                      │          │              │
+    │                               [B, 2048, 7, 7]   │              │
+    │                                      │          │              │
+    │                              Global Avg Pool    │              │
+    │                                      │          │              │
+    │                               [B, 2048]         │              │
     │                                                 │              │
     └─────────────────────────────────────┬───────────┘              │
                                           │                          │
                                           ▼                          ▼
                                ┌─────────────────────────────────────────┐
-                               │              OUTPUT HEAD               │
+                               │              OUTPUT HEAD                │
                                │                                         │
                                │   Linear(2048, num_classes)             │
                                │              │                          │
@@ -358,6 +358,9 @@ This is the crucial link that ties everything together — understanding how **w
 
 ## PyTorch Implementation Example
 
+::: {.callout-note appearance="simple" collapse="true"}
+### Code
+
 ```python
 # CLASSIFICATION: Complete Data + Model Connection
 # ══════════════════════════════════════════════════════════════════════════════
@@ -458,6 +461,9 @@ for images, labels in dataloader:
 # ══════════════════════════════════════════════════════════════════════════════
 ```
 
+:::
+
+
 
 ---
 
@@ -510,14 +516,14 @@ for images, labels in dataloader:
     Each pixel value = class index
     
     ┌───────────────────────────────────┐
-    │ 0  0  0  0  0  0  0  0  0  0  0  │     0 = Background
-    │ 0  0  1  1  1  1  1  0  0  0  0  │     1 = Class 1 (Liver)
-    │ 0  1  1  1  1  1  1  1  0  0  0  │     2 = Class 2 (Tumor)
-    │ 0  1  1  1  2  2  1  1  1  0  0  │     3 = Class 3 (Vessel)
-    │ 0  1  1  2  2  2  2  1  1  0  0  │     ...
-    │ 0  0  1  1  2  2  1  1  0  0  0  │     255 = Ignore (optional)
-    │ 0  0  0  1  1  1  1  0  0  0  0  │
-    │ 0  0  0  0  0  0  0  0  0  0  0  │
+    │ 0  0  0  0  0  0  0  0  0  0  0   │     0 = Background
+    │ 0  0  1  1  1  1  1  0  0  0  0   │     1 = Class 1 (Liver)
+    │ 0  1  1  1  1  1  1  1  0  0  0   │     2 = Class 2 (Tumor)
+    │ 0  1  1  1  2  2  1  1  1  0  0   │     3 = Class 3 (Vessel)
+    │ 0  1  1  2  2  2  2  1  1  0  0   │     ...
+    │ 0  0  1  1  2  2  1  1  0  0  0   │     255 = Ignore (optional)
+    │ 0  0  0  1  1  1  1  0  0  0  0   │
+    │ 0  0  0  0  0  0  0  0  0  0  0   │
     └───────────────────────────────────┘
     
     File type: PNG (8-bit or 16-bit), TIFF, NPY
@@ -664,10 +670,10 @@ for images, labels in dataloader:
     ────────────────────────
     
     
-    Input                              Output
-    [B, 1, 256, 256]                   [B, num_classes, 256, 256]
-          │                                   ▲
-          ▼                                   │
+            Input                                  Output
+            [B, 1, 256, 256]                       [B, num_classes, 256, 256]
+                │                                        ▲
+                ▼                                        │
     ┌─────────────────────────────────────────────────────────────────────────┐
     │                                                                         │
     │     ENCODER                                    DECODER                  │
@@ -701,9 +707,9 @@ for images, labels in dataloader:
     │                                                                         │
     │     Conv2d(64, num_classes, kernel_size=1)                              │
     │                                                                         │
-    │     [B, 64, 256, 256]  ──────►  [B, num_classes, 256, 256]             │
+    │     [B, 64, 256, 256]  ──────►  [B, num_classes, 256, 256]              │
     │                                                                         │
-    │     1×1 convolution changes channels from 64 to num_classes            │
+    │     1×1 convolution changes channels from 64 to num_classes             │
     │     while preserving spatial dimensions!                                │
     │                                                                         │
     └─────────────────────────────────────────────────────────────────────────┘
@@ -757,17 +763,17 @@ for images, labels in dataloader:
     
     Example at one pixel location:
     
-    Logits:       [2.1, 0.5, -1.2]     (3 classes)
+    Logits:           [2.1, 0.5, -1.2]     (3 classes)
                         │
-                  Softmax
-                        │
-                        ▼
-    Probabilities: [0.75, 0.15, 0.10]   (sum = 1)
-                        │
-                  Argmax
+                    Softmax
                         │
                         ▼
-    Prediction:    0                    (class 0 = background)
+    Probabilities:    [0.75, 0.15, 0.10]   (sum = 1)
+                        │
+                    Argmax
+                        │
+                        ▼
+    Prediction:         0                  (class 0 = background)
     
     ═══════════════════════════════════════════════════════════════════════════
 ```
@@ -865,6 +871,10 @@ for images, labels in dataloader:
 ```
 
 ## PyTorch Implementation Example
+
+::: {.callout-note appearance="simple" collapse="true"}
+### Code
+
 
 ```python
 # SEGMENTATION: Complete Data + Model Connection
@@ -1023,6 +1033,8 @@ for images, masks in dataloader:
 
 # ══════════════════════════════════════════════════════════════════════════════
 ```
+:::
+
 
 
 ---
@@ -1154,7 +1166,7 @@ for images, masks in dataloader:
     │             "id": 1,                    ← Unique annotation ID           │
     │             "image_id": 1,              ← Links to image                 │
     │             "category_id": 1,           ← Links to category              │
-    │             "bbox": [50, 30, 150, 150], ← [x, y, width, height]         │
+    │             "bbox": [50, 30, 150, 150], ← [x, y, width, height]          │
     │             "area": 22500,              ← bbox area                      │
     │             "iscrowd": 0                                                 │
     │         },                                                               │
@@ -1206,12 +1218,12 @@ for images, masks in dataloader:
     │ 0 0.45 0.35 0.30 0.40                                                    │
     │ 1 0.75 0.25 0.20 0.25                                                    │
     │                                                                          │
-    │ Format: <class_id> <x_center> <y_center> <width> <height>               │
+    │ Format: <class_id> <x_center> <y_center> <width> <height>                │
     │                                                                          │
-    │ All values NORMALIZED to [0, 1] relative to image dimensions!           │
+    │ All values NORMALIZED to [0, 1] relative to image dimensions!            │
     │                                                                          │
-    │ Line 1: class=0 (dog), center at (0.45, 0.35), size (0.30 × 0.40)       │
-    │ Line 2: class=1 (cat), center at (0.75, 0.25), size (0.20 × 0.25)       │
+    │ Line 1: class=0 (dog), center at (0.45, 0.35), size (0.30 × 0.40)        │
+    │ Line 2: class=1 (cat), center at (0.75, 0.25), size (0.20 × 0.25)        │
     └──────────────────────────────────────────────────────────────────────────┘
     
     
@@ -1231,30 +1243,30 @@ for images, masks in dataloader:
     BBOX FORMAT COMPARISON:
     ───────────────────────
     
-    ┌─────────────┬─────────────────────────┬──────────────────────────────────┐
-    │   Format    │       Representation    │          Example                 │
-    ├─────────────┼─────────────────────────┼──────────────────────────────────┤
-    │  PASCAL VOC │  [xmin, ymin, xmax, ymax] │  [50, 30, 200, 180]  (pixels)  │
-    │             │  (corner coordinates)   │                                  │
-    ├─────────────┼─────────────────────────┼──────────────────────────────────┤
-    │    COCO     │  [x, y, width, height]  │  [50, 30, 150, 150]  (pixels)    │
-    │             │  (top-left + size)      │                                  │
-    ├─────────────┼─────────────────────────┼──────────────────────────────────┤
-    │    YOLO     │  [cx, cy, w, h]         │  [0.45, 0.35, 0.3, 0.4]          │
-    │             │  (center + size)        │  (normalized 0-1)                │
-    └─────────────┴─────────────────────────┴──────────────────────────────────┘
+    ┌─────────────┬───────────────────────────┬──────────────────────────────────┐
+    │   Format    │       Representation      │          Example                 │
+    ├─────────────┼───────────────────────────┼──────────────────────────────────┤
+    │  PASCAL VOC │  [xmin, ymin, xmax, ymax] │  [50, 30, 200, 180]  (pixels)    │
+    │             │  (corner coordinates)     │                                  │
+    ├─────────────┼───────────────────────────┼──────────────────────────────────┤
+    │    COCO     │  [x, y, width, height]    │  [50, 30, 150, 150]  (pixels)    │
+    │             │  (top-left + size)        │                                  │
+    ├─────────────┼───────────────────────────┼──────────────────────────────────┤
+    │    YOLO     │  [cx, cy, w, h]           │  [0.45, 0.35, 0.3, 0.4]          │
+    │             │  (center + size)          │  (normalized 0-1)                │
+    └─────────────┴───────────────────────────┴──────────────────────────────────┘
     
     
            PASCAL VOC                    COCO                      YOLO
            
     ┌─────────────────────┐     ┌─────────────────────┐    ┌─────────────────────┐
     │  (xmin,ymin)        │     │  (x,y)              │    │                     │
-    │    ●────────────┐   │     │    ●────────────┐   │    │         ●          │
-    │    │            │   │     │    │     w      │   │    │    (cx,cy)         │
-    │    │   Object   │   │     │  h │   Object   │   │    │    center          │
+    │    ●────────────┐   │     │    ●────────────┐   │    │         ●           │
+    │    │            │   │     │    │     w      │   │    │    (cx,cy)          │
+    │    │   Object   │   │     │  h │   Object   │   │    │    center           │
     │    │            │   │     │    │            │   │    │                     │
-    │    └────────────●   │     │    └────────────┘   │    │  w=0.3, h=0.4      │
-    │            (xmax,ymax)    │                     │    │  (normalized)      │
+    │    └────────────●   │     │    └────────────┘   │    │  w=0.3, h=0.4       │
+    │            (xmax,ymax)    │                     │    │  (normalized)       │
     └─────────────────────┘     └─────────────────────┘    └─────────────────────┘
     
     ═══════════════════════════════════════════════════════════════════════════
@@ -1368,8 +1380,8 @@ for images, masks in dataloader:
     │   At each grid cell (i, j) and anchor (a):                              │
     │                                                                         │
     │   ┌────────────────────────────────────────────────────────────────┐    │
-    │   │  tx, ty  │  tw, th  │ objectness │  class_0 ... class_79      │    │
-    │   │  (2)     │  (2)     │    (1)     │         (80)               │    │
+    │   │  tx, ty  │  tw, th  │ objectness │  class_0 ... class_79       │    │
+    │   │  (2)     │  (2)     │    (1)     │         (80)                │    │
     │   └────────────────────────────────────────────────────────────────┘    │
     │       │           │           │               │                         │
     │       ▼           ▼           ▼               ▼                         │
@@ -1588,6 +1600,11 @@ for images, masks in dataloader:
 
 ## PyTorch Implementation Example
 
+
+::: {.callout-note appearance="simple" collapse="true"}
+### Code
+
+
 ```python
 # OBJECT DETECTION: Complete Data + Model Connection
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1788,6 +1805,8 @@ with torch.no_grad():
 
 # ══════════════════════════════════════════════════════════════════════════════
 ```
+:::
+
 
 
 ---
@@ -1890,10 +1909,10 @@ with torch.no_grad():
     
     ┌─────────────┐         ┌─────────────┐         ┌─────────────────┐
     │             │         │             │         │ Box 1:          │
-    │  🐱    🐕   │   ──►   │  Faster     │   ──►   │  [50,30,200,180]│
+    │  🐱    🐕    │   ──►   │  Faster     │   ──►   │  [50,30,200,180]│
     │             │         │  R-CNN      │         │  class: dog     │
     │             │         │  + NMS      │         │ Box 2:          │
-    └─────────────┘         └─────────────┘         │  [250,50,350,150│
+    └─────────────┘         └─────────────┘         │ [250,50,350,150]│
     Input: [3,H,W]                                  │  class: cat     │
                                                     └─────────────────┘
                                                     Output: N × [4 + cls]
