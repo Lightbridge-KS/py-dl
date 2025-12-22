@@ -56,6 +56,10 @@ book:
           href: "contents/pytorch/working-w-img/1_image_dog.ipynb"
         - text: CT Data
           href: "contents/pytorch/working-w-ct/2_volumetric_ct.ipynb"
+    - part: Open-CV
+      chapters: 
+        - text: CV2 Crash Course
+          href: "contents/open-cv/cv2-crash-course.qmd"
     - part: Feature Processing
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"
