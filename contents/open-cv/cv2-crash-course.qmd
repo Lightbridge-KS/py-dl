@@ -349,3 +349,12 @@ processed = preprocess_xray("chest_xray.png")
 print(processed.shape)  # (224, 224, 1)
 ```
 
+## Next Steps
+
+Once you're comfortable with `cv2`, you'll want to learn:
+
+- `torchvision.transforms` — PyTorch's image transforms (integrates with DataLoader)
+
+- `albumentations` — Advanced augmentation library (very popular in medical imaging)
+
+- `PIL/Pillow` — Alternative image library (used by torchvision internally)
