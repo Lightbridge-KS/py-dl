@@ -1,0 +1,137 @@
+---
+title: "Batch, Iteration, and Epoch"
+---
+
+
+These three terms describe *how* a neural network consumes training data. Let me start with a one-line definition of each, then build up the picture.
+
+| Term | Meaning |
+|---|---|
+| **Batch** | A small *group* of training samples processed together in one forward + backward pass. |
+| **Iteration** | One *weight update step* — happens after each batch. |
+| **Epoch** | One *complete pass* through the entire training dataset. |
+
+## The Big Picture
+
+```
+┌──────────────────────── TRAINING LOOP ─────────────────────────┐
+│                                                                │
+│  EPOCH 1  (one full sweep over the dataset)                    │
+│  ┌───────┬───────┬───────┬───────┬─ ─ ─ ┬───────┐              │
+│  │Batch 1│Batch 2│Batch 3│Batch 4│      │Batch N│              │
+│  └───┬───┴───┬───┴───┬───┴───┬───┴─ ─ ─ ┴───┬───┘              │
+│    iter 1  iter 2  iter 3  iter 4         iter N               │
+│                                                                │
+│  EPOCH 2  (same data, re-shuffled, weights keep learning)      │
+│  ┌───────┬───────┬───────┬───────┬─ ─ ─ ┬───────┐              │
+│  │Batch 1│Batch 2│Batch 3│Batch 4│      │Batch N│              │
+│  └───────┴───────┴───────┴───────┴─ ─ ─ ┴───────┘              │
+│                                                                │
+│  ... repeat for num_epochs ...                                 │
+└────────────────────────────────────────────────────────────────┘
+```
+
+## A Concrete Example
+
+Suppose your chest X-ray dataset has **1,000 images**, and you choose **batch size = 100**.
+
+```
+Dataset: 1,000 samples
+│
+├─ [  1 ..  100 ]  ──► Batch 1   ──► Iteration 1  (update weights)
+├─ [101 ..  200 ]  ──► Batch 2   ──► Iteration 2  (update weights)
+├─ [201 ..  300 ]  ──► Batch 3   ──► Iteration 3  (update weights)
+├─ [301 ..  400 ]  ──► Batch 4   ──► Iteration 4
+├─ [401 ..  500 ]  ──► Batch 5   ──► Iteration 5
+├─ [501 ..  600 ]  ──► Batch 6   ──► Iteration 6
+├─ [601 ..  700 ]  ──► Batch 7   ──► Iteration 7
+├─ [701 ..  800 ]  ──► Batch 8   ──► Iteration 8
+├─ [801 ..  900 ]  ──► Batch 9   ──► Iteration 9
+└─ [901 .. 1000 ]  ──► Batch 10  ──► Iteration 10
+                                     
+►  1 Epoch = 10 iterations (because 1000 ÷ 100 = 10)
+►  If you train for 5 epochs → 50 iterations total, 50 weight updates
+```
+
+The formula:
+
+```
+iterations_per_epoch = ceil(dataset_size / batch_size)
+total_iterations     = num_epochs × iterations_per_epoch
+```
+
+## What Happens Inside One Iteration
+
+This is where the learning actually happens — the "heartbeat" of training:
+
+```
+                ONE ITERATION  (processing one batch)
+
+   ┌──────────┐   forward    ┌──────────┐             ┌──────┐
+   │  Batch   │ ───────────► │  Model   │ ──────────► │ Loss │
+   │ (inputs) │              │ (θ old)  │  prediction │  L   │
+   └──────────┘              └────┬─────┘             └──┬───┘
+                                  ▲                      │
+                                  │   ∂L/∂θ  (gradients) │
+                                  └──────────────────────┘
+                                        backward
+                                           │
+                                           ▼
+                                  ┌────────────────┐
+                                  │  Optimizer     │
+                                  │  θ ← θ − η·∇L  │   (update weights)
+                                  └────────────────┘
+```
+
+So: **one batch → one forward pass → one loss → one backward pass → one weight update = one iteration.**
+
+## How It Looks in PyTorch
+
+```python
+import torch
+from torch.utils.data import DataLoader
+
+# 1,000 samples, batch size 100  →  10 batches per epoch
+train_loader = DataLoader(train_dataset, batch_size=100, shuffle=True)
+
+num_epochs = 5
+
+for epoch in range(num_epochs):                      # ← EPOCH loop
+    for batch_idx, (inputs, labels) in enumerate(train_loader):  # ← ITERATION loop
+        # inputs.shape = [100, C, H, W]  ← this IS the BATCH
+
+        optimizer.zero_grad()          # clear old gradients
+        outputs = model(inputs)        # forward pass
+        loss   = criterion(outputs, labels)
+        loss.backward()                # backward pass (compute gradients)
+        optimizer.step()               # ← one ITERATION completes here
+```
+
+Two nested loops: the outer loop is epochs, the inner loop is iterations over batches. The `DataLoader` handles splitting the dataset into batches for you — which is why you'll see it in almost every PyTorch training script.
+
+## Why Do We Even Use Batches?
+
+There are three possible strategies, and batching is the practical middle ground:
+
+```
+  Batch size = 1              Batch size = N (full dataset)    Batch size = small subset
+  ─────────────────           ─────────────────────────────    ──────────────────────────
+  Stochastic GD               Batch Gradient Descent           Mini-batch GD (standard)
+                                                              
+  • Updates very noisy         • Very smooth updates            • Balanced noise
+  • Slow (no parallelism)      • Needs huge memory              • Fits in GPU memory
+  • Can escape local minima    • Often too slow per update      • Fast + parallel on GPU
+                                                                • Noise helps generalize
+```
+
+In practice, **mini-batch gradient descent** (batch size 16–512 is common) is the default because it uses the GPU efficiently while keeping enough stochasticity to help the model generalize.
+
+## Quick Mental Model
+
+Think of training a radiology AI like reading a medical textbook to pass an exam:
+
+- **Sample** = one sentence
+- **Batch** = one paragraph you read before pausing to reflect
+- **Iteration** = the act of reflecting and updating your understanding after each paragraph
+- **Epoch** = finishing the whole textbook once
+- **Multiple epochs** = re-reading the textbook several times — each pass, you understand more because you're starting from better prior knowledge
