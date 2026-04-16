@@ -28,6 +28,8 @@ book:
       chapters: 
         - text: Batch vs Iteration vs Epoch
           href: "contents/concept/batch-iteration-epoch.qmd"
+        - text: How to choose batch size
+          href: "contents/concept/choose-good-batch.qmd"
         - text: Gradient
           href: "contents/concept/gradient-func.qmd"
         - text: Parameter Estimation

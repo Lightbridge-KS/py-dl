@@ -1,0 +1,255 @@
+---
+title: "Choosing a Good Batch Size"
+---
+
+Batch size is one of the most consequential hyperparameters you'll set. It affects **memory usage**, **training speed**, **generalization quality**, and interacts tightly with the **learning rate**. Let me unpack each axis.
+
+## The Three-Way Tradeoff
+
+```
+                        ┌─────────────────┐
+                        │   BATCH SIZE    │
+                        └────────┬────────┘
+                                 │
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                  ▼
+       ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+       │  GPU MEMORY  │   │ TRAINING     │   │ GENERALIZA-  │
+       │  (hard limit)│   │ DYNAMICS     │   │ TION         │
+       └──────────────┘   │ (noise, LR)  │   │ (test error) │
+                          └──────────────┘   └──────────────┘
+       bigger = more      bigger = smoother  bigger = often
+       memory needed      gradients,         worse generaliza-
+                          fewer updates      tion (less noise)
+```
+
+You're always balancing these three. Let's go through them.
+
+## Axis 1: GPU Memory — The Hard Ceiling
+
+Memory is the *non-negotiable* constraint. If you exceed it, you get `CUDA out of memory` and training stops.
+
+```
+          GPU MEMORY during training (one forward + backward pass)
+
+   ┌────────────────────────────────────────────────────────────┐
+   │  Model parameters θ         (fixed, doesn't scale w/ batch)│
+   ├────────────────────────────────────────────────────────────┤
+   │  Optimizer states           (fixed; Adam = 2× params)      │
+   ├────────────────────────────────────────────────────────────┤
+   │  Gradients ∇θ               (fixed, same size as params)   │
+   ├────────────────────────────────────────────────────────────┤
+   │  ★ Activations (feature maps)  ←── SCALES WITH BATCH SIZE  │
+   │                                    (the big variable)      │
+   ├────────────────────────────────────────────────────────────┤
+   │  Input batch tensor         (scales with batch size)       │
+   └────────────────────────────────────────────────────────────┘
+```
+
+**Activations dominate** for CNNs on medical images. A ResNet-50 on a 512×512 chest X-ray with batch size 32 can easily use 10+ GB just for activations.
+
+Rough rule of thumb:
+
+```
+  Memory ≈ Model + Optimizer + (BatchSize × ActivationsPerSample)
+                                ▲
+                                └── this is what you control
+```
+
+**Practical workflow on your M3 Pro (36 GB unified memory):**
+
+```
+Start small   →   Probe   →   Scale up   →   Stop before OOM
+    │              │              │               │
+    ▼              ▼              ▼               ▼
+batch_size=8   torch.mps       double it:       keep at the
+(safe start)   monitor         16, 32, 64       largest stable
+               memory                           size
+```
+
+You can check memory usage in PyTorch:
+
+```python
+# On Apple Silicon (MPS)
+import torch
+print(torch.mps.current_allocated_memory() / 1e9, "GB")
+
+# On CUDA GPUs
+print(torch.cuda.memory_allocated() / 1e9, "GB")
+print(torch.cuda.max_memory_allocated() / 1e9, "GB (peak)")
+```
+
+## Axis 2: Training Dynamics — Noise and Update Frequency
+
+Batch size controls how noisy your gradient estimates are:
+
+```
+  SMALL BATCH (e.g. 8)                    LARGE BATCH (e.g. 512)
+  ─────────────────────                   ─────────────────────
+                                                              
+  Loss                                     Loss
+   │   ╱╲  ╱╲                               │        ╱╲
+   │  ╱  ╲╱  ╲   ╱╲ ╱╲                      │   ╱╲  ╱  ╲
+   │ ╱        ╲ ╱  ╲  ╲___                   │  ╱  ╲╱    ╲___
+   │                                         │
+   └────────────────► steps                  └────────────────► steps
+                                                               
+   Noisy trajectory                         Smooth trajectory
+   Many updates per epoch                   Few updates per epoch
+   Can escape sharp minima                  Can get stuck
+   Often better generalization              Needs care to generalize
+```
+
+Why? The gradient from a batch is an **estimate** of the true gradient over the whole dataset. Smaller batch = higher variance estimate = noisier steps. That noise is actually useful — it acts like implicit regularization and helps find "flat" minima that generalize better.
+
+There's a well-known paper by Keskar et al. (2017) showing that very large batches tend to converge to *sharp* minima that generalize worse. This is called the **"generalization gap"** of large-batch training.
+
+## Axis 3: Batch Size ↔ Learning Rate Coupling
+
+This is the most important interaction to understand. **They are not independent hyperparameters.**
+
+The intuition: if each step uses a more accurate gradient (big batch), you can afford to take a bigger step. If each step is noisy (small batch), you need to step carefully.
+
+```
+  ┌─────────────────────────────────────────────────────────┐
+  │              TWO COMMON SCALING RULES                   │
+  ├─────────────────────────────────────────────────────────┤
+  │                                                         │
+  │  Linear Scaling Rule  (Goyal et al., Facebook 2017)     │
+  │  ───────────────────                                    │
+  │      LR_new = LR_base × (batch_new / batch_base)        │
+  │                                                         │
+  │  Used widely in vision (ResNet, ImageNet training).     │
+  │  Works well up to batch ~8,000.                         │
+  │                                                         │
+  ├─────────────────────────────────────────────────────────┤
+  │                                                         │
+  │  Square-Root Scaling Rule                               │
+  │  ────────────────────────                               │
+  │      LR_new = LR_base × sqrt(batch_new / batch_base)    │
+  │                                                         │
+  │  Motivated by gradient-variance theory. Often better    │
+  │  for Adam-family optimizers.                            │
+  │                                                         │
+  └─────────────────────────────────────────────────────────┘
+```
+
+**Concrete example.** Suppose you found that `batch=32, lr=1e-3` works well. You now want to try `batch=128`:
+
+```
+Linear rule:       lr_new = 1e-3 × (128/32) = 4e-3
+Square-root rule:  lr_new = 1e-3 × √(128/32) = 2e-3
+```
+
+Start there and tune from that point. Don't keep the old learning rate — you'll under-train.
+
+One more visualization of the coupling:
+
+```
+       BATCH SIZE →
+       ┌────────────────────────────────────────┐
+   L   │                                        │
+   E   │   tiny LR        ← training diverges   │
+   A   │   ┌─────────┬─────────┬──────────┐     │
+   R   │   │ ✓ works │ under-  │ very     │     │
+   N   │   │         │ trained │ slow     │     │
+   I   │   ├─────────┼─────────┼──────────┤     │
+   N   │   │ diverges│ ✓ works │ under-   │     │
+   G   │   │         │ (sweet  │ trained  │     │
+       │   │         │  spot)  │          │     │
+   R   │   ├─────────┼─────────┼──────────┤     │
+   A   │   │ diverges│ diverges│ ✓ works  │     │
+   T   │   │ quickly │         │          │     │
+   E   │   └─────────┴─────────┴──────────┘     │
+   ↓   │      small       medium     large      │
+       └────────────────────────────────────────┘
+
+   The "✓ works" region runs diagonally — LR must grow with batch size.
+```
+
+## Practical Recipe for Choosing Batch Size
+
+Here's a decision flow you can actually use:
+
+```
+  START
+    │
+    ▼
+  ┌────────────────────────────────────┐
+  │ Pick a sensible default            │
+  │   • Small images, simple model: 64 │
+  │   • Medical images 256–512px: 16–32│
+  │   • Large 3D volumes (CT/MRI): 1–4 │
+  └────────────────┬───────────────────┘
+                   │
+                   ▼
+  ┌────────────────────────────────────┐
+  │ Does it fit in GPU/MPS memory?     │
+  └──┬─────────────────────────────┬───┘
+     │ No                          │ Yes
+     ▼                             ▼
+  ┌──────────────────┐   ┌─────────────────────────┐
+  │ Reduce batch OR  │   │ Try doubling: 16→32→64  │
+  │ use gradient     │   │ Keep the largest that   │
+  │ accumulation     │   │ (a) fits in memory AND  │
+  │ (next section)   │   │ (b) still generalizes   │
+  └──────────────────┘   └───────────┬─────────────┘
+                                     │
+                                     ▼
+                         ┌───────────────────────────┐
+                         │ Tune LR using scaling rule│
+                         │ Monitor val loss          │
+                         └───────────────────────────┘
+```
+
+## Gradient Accumulation — When Your Memory Says No
+
+A critical technique for medical imaging where batches often can't fit. You *simulate* a large batch by accumulating gradients over several small batches before updating.
+
+```
+  Want effective batch = 64, but only 16 fits in memory?
+  Use accumulation_steps = 4
+
+  mini-batch 1 → forward → backward → accumulate ∇  (no update)
+  mini-batch 2 → forward → backward → accumulate ∇  (no update)
+  mini-batch 3 → forward → backward → accumulate ∇  (no update)
+  mini-batch 4 → forward → backward → accumulate ∇  → UPDATE, zero grads
+
+  Effective batch size = 16 × 4 = 64
+```
+
+In PyTorch:
+
+```python
+accumulation_steps = 4
+optimizer.zero_grad()
+
+for i, (inputs, labels) in enumerate(train_loader):
+    outputs = model(inputs)
+    loss = criterion(outputs, labels) / accumulation_steps  # normalize
+    loss.backward()                                         # accumulate
+
+    if (i + 1) % accumulation_steps == 0:
+        optimizer.step()
+        optimizer.zero_grad()
+```
+
+The effective batch size is `batch_size × accumulation_steps`. The trade-off: same memory, same gradient quality as a big batch, but slower wall-clock time (more forward passes per update).
+
+## A Quick Reference Table for Radiology Use Cases
+
+| Task | Image size | Typical batch size | Notes |
+|---|---|---|---|
+| 2D chest X-ray classification | 224² or 512² | 32–64 | Fits comfortably on most GPUs |
+| 2D mammography (high-res) | 1024²+ | 4–16 | Large activations; often need accumulation |
+| 3D CT/MRI segmentation (3D U-Net) | 128³ patches | 1–4 | Memory-bound; patch-based training |
+| 2D slice-based segmentation | 512² | 8–32 | Middle ground |
+| Vision Transformers (ViT) on 2D | 224² | 16–64 | Attention memory is quadratic in tokens |
+
+## Key Takeaways
+
+1. **Batch size is bounded from above by memory** — find your ceiling first.
+2. **It's bounded from below by efficiency** — too small wastes GPU parallelism.
+3. **Always retune the learning rate** when you change batch size (linear or √ rule).
+4. **Very large batches can hurt generalization** — don't chase "bigger is better" blindly.
+5. **Use gradient accumulation** when you want a large effective batch but have limited memory.
