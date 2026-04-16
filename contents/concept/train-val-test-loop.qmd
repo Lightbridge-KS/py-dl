@@ -1,0 +1,140 @@
+---
+title: "Train / Validation / Test Loop"
+---
+
+
+## The three splits and their roles
+
+```
+              ┌───────────────────────────────────────────┐
+              │             Whole dataset                 │
+              └───────────────────────────────────────────┘
+                                  │
+            ┌─────────────────────┼─────────────────────┐
+            ▼                     ▼                     ▼
+      ┌──────────┐          ┌──────────┐          ┌──────────┐
+      │  TRAIN   │          │   VAL    │          │   TEST   │
+      │  ~70%    │          │  ~15%    │          │  ~15%    │
+      └──────────┘          └──────────┘          └──────────┘
+       model LEARNS           model is           touched ONCE
+       from this              WATCHED on         at the very end
+       (backprop ON)          this every         for an unbiased
+                              epoch              final estimate
+                              (backprop OFF)     (backprop OFF)
+```
+
+Think of it the way you'd evaluate a resident:
+- **Train** = cases they read during training (they get feedback/corrections)
+- **Validation** = quizzes during training (you use results to adjust their curriculum)
+- **Test** = the board exam (only taken once, never seen before)
+
+If you "peek" at the test set during development — tune hyperparameters on it, pick the best epoch on it — it stops being an exam and silently becomes another validation set. That's **data leakage**, and it's one of the biggest pitfalls in clinical AI.
+
+## How the loop changes
+
+```
+for epoch in 1..N:
+
+    ┌─────────────────────────────────────┐
+    │  TRAIN phase                        │   model.train()
+    │    forward → loss → backward → step │   grads ON
+    └─────────────────────────────────────┘
+                   │
+                   ▼
+    ┌─────────────────────────────────────┐
+    │  VALIDATION phase                   │   model.eval()
+    │    forward → loss + metrics         │   grads OFF
+    │    (NO backward, NO optimizer.step) │   (torch.no_grad)
+    └─────────────────────────────────────┘
+                   │
+                   ▼
+      log metrics → maybe save best checkpoint → maybe early-stop
+
+── after the final epoch ────────────────────────────────────
+    ┌─────────────────────────────────────┐
+    │  TEST phase (exactly once)          │   model.eval()
+    │    forward → final metrics          │   grads OFF
+    └─────────────────────────────────────┘
+```
+
+## Refactored code
+
+I'll factor the two phases into small functions — each has one clear job, which keeps the epoch loop readable.
+
+```python
+import torch
+from torch.utils.data import DataLoader
+
+# --- 1. One DataLoader per split ----------------------------------
+# shuffle=True only for train: we want random order during learning,
+# but deterministic order during evaluation so metrics are reproducible.
+train_loader = DataLoader(train_dataset, batch_size=100, shuffle=True)
+val_loader   = DataLoader(val_dataset,   batch_size=100, shuffle=False)
+test_loader  = DataLoader(test_dataset,  batch_size=100, shuffle=False)
+
+
+def train_one_epoch(model, loader, criterion, optimizer, device):
+    """One full pass over the training data. Returns average loss."""
+    model.train()                       # enable dropout; update BatchNorm stats
+    running_loss = 0.0
+
+    for inputs, labels in loader:
+        inputs, labels = inputs.to(device), labels.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * inputs.size(0)
+
+    return running_loss / len(loader.dataset)
+
+
+@torch.no_grad()                        # turn off autograd for the whole function
+def evaluate(model, loader, criterion, device):
+    """One full pass with NO learning. Returns (avg loss, accuracy)."""
+    model.eval()                        # disable dropout; freeze BatchNorm stats
+    running_loss, correct, total = 0.0, 0, 0
+
+    for inputs, labels in loader:
+        inputs, labels = inputs.to(device), labels.to(device)
+
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+
+        running_loss += loss.item() * inputs.size(0)
+        preds = outputs.argmax(dim=1)
+        correct += (preds == labels).sum().item()
+        total   += labels.size(0)
+
+    return running_loss / total, correct / total
+
+
+# --- 2. The full training lifecycle -------------------------------
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+model = model.to(device)
+
+num_epochs = 5
+for epoch in range(1, num_epochs + 1):
+    train_loss         = train_one_epoch(model, train_loader, criterion, optimizer, device)
+    val_loss, val_acc  = evaluate(model, val_loader,  criterion, device)
+
+    print(f"Epoch {epoch:02d} | train_loss={train_loss:.4f} "
+          f"| val_loss={val_loss:.4f} | val_acc={val_acc:.4f}")
+
+# --- 3. Final unbiased evaluation — ONLY after all training is done ---
+test_loss, test_acc = evaluate(model, test_loader, criterion, device)
+print(f"\nFinal test: loss={test_loss:.4f} | acc={test_acc:.4f}")
+```
+
+## Four PyTorch-specific things worth internalizing
+
+**`model.train()` vs `model.eval()`** — these flip an internal switch that changes the behavior of certain layers, most importantly Dropout and BatchNorm. In `train()` mode, Dropout randomly zeros activations and BatchNorm updates its running statistics. In `eval()` mode, Dropout is off and BatchNorm uses the statistics it accumulated during training. Forgetting to switch to `eval()` is a classic silent bug — your validation metrics will look noisy and wrong.
+
+**`torch.no_grad()`** — autograd normally builds a computation graph so it can backprop later. During evaluation you're not backpropping, so the graph is wasted memory and compute. `@torch.no_grad()` (as a decorator) or `with torch.no_grad():` (as a block) tells PyTorch "don't bother." This typically halves memory use and speeds eval up noticeably.
+
+**`shuffle=False` for val/test** — shuffling is a training-time trick to avoid the model memorizing sample order. For evaluation you want deterministic, reproducible runs.
+
+**The test-set discipline** — in production radiology AI work, the test set is ideally locked away (a separate institution's data, or a held-out time window) and evaluated once, right before publication or deployment. If you touch it repeatedly during model selection, your reported performance becomes optimistically biased. This is worth building the muscle memory for early.

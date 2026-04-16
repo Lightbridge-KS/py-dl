@@ -34,6 +34,8 @@ book:
           href: "contents/concept/gradient-func.qmd"
         - text: Parameter Estimation
           href: "contents/concept/1_parameter_estimation.ipynb"
+        - text: Train / Val / Test
+          href: "contents/concept/train-val-test-loop.qmd"
     - part: Tensor
       chapters: 
         - "contents/tensor/tensor-00-anatomy.qmd"
