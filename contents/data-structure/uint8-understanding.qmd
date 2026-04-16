@@ -1,0 +1,95 @@
+# Understanding "Unsigned" in uint8
+
+
+## The Core Idea
+
+**"Unsigned"** simply means: **no negative numbers allowed** — the value has no sign (no `+` or `-`), so it's always treated as positive (or zero).
+
+The opposite is **"signed"**, which means the number *can* be negative.
+
+## Why "uint8" Specifically?
+
+Let's decode the name:
+
+```
+u   int    8
+│    │     │
+│    │     └── 8 bits of storage
+│    └──────── integer type
+└───────────── unsigned (no negatives)
+```
+
+With **8 bits**, you can represent $2^8 = 256$ distinct values. The question is: *how do you use those 256 slots?*
+
+## Signed vs Unsigned: 8-bit Example
+
+```
+                  ┌─────────────────────────────────────┐
+                  │        8 bits = 256 values          │
+                  └─────────────────────────────────────┘
+
+   uint8  (unsigned) ─►  [ 0, 1, 2, ..., 254, 255 ]
+                          └──────┬──────────────┘
+                           all non-negative
+
+   int8   (signed)   ─►  [ -128, -127, ..., 0, ..., 126, 127 ]
+                          └──────┬──────────────────────────┘
+                           half negative, half positive
+```
+
+Same 256 slots — but allocated differently:
+
+| Type    | Min   | Max  | Use case                          |
+|---------|-------|------|-----------------------------------|
+| `uint8` | 0     | 255  | Pixel intensities, image data     |
+| `int8`  | -128  | 127  | Small signed values (less common) |
+
+## Why Images Use uint8
+
+Pixel intensity is a **physical quantity** — it represents "how much light" hit the sensor. You can't have *negative* light. So:
+
+```
+Grayscale pixel value
+    0   ────────►  pure black  (no light)
+  128   ────────►  mid-gray
+  255   ────────►  pure white  (maximum brightness)
+```
+
+Negative values here would be **meaningless**, so `uint8` is the natural fit. It also saves memory — each pixel takes only 1 byte.
+
+## Connection to Deep Learning (and Radiology!)
+
+In PyTorch, you'll constantly convert between `uint8` and `float32`:
+
+```python
+import torch
+from torchvision import transforms
+
+# A typical RGB image loaded from disk
+image_uint8 = torch.randint(0, 256, (3, 224, 224), dtype=torch.uint8)
+print(image_uint8.min(), image_uint8.max())  # tensor(0) tensor(255)
+
+# Neural networks prefer float values in [0, 1] or normalized ranges
+image_float = image_uint8.float() / 255.0
+print(image_float.min(), image_float.max())  # tensor(0.) tensor(1.)
+```
+
+**Why the conversion?** Neural networks do math (multiplications, gradients) that often produces fractional and negative numbers — which `uint8` cannot represent. So we promote to `float32` for training.
+
+### A Radiology Note
+
+DICOM images are a different story — CT Hounsfield Units range roughly from **-1000 (air)** to **+3000 (bone)**, so they need *signed* types like `int16`. That's why medical imaging pipelines typically don't use `uint8` directly until after windowing/normalization converts the data to an 8-bit display range.
+
+```
+CT raw data     ─► int16    (HU values,   -1000 to +3000)
+      │
+      ▼  windowing + normalization
+Display image   ─► uint8    (pixels,          0 to 255)
+      │
+      ▼  convert for model
+Model input     ─► float32  (normalized,      0.0 to 1.0)
+```
+
+## Summary
+
+> **"Unsigned"** = the type reserves zero bits for the sign, so all 256 combinations represent non-negative integers (0–255). Perfect for pixel data where negative values have no physical meaning.
