@@ -1,4 +1,6 @@
-# CustomImageDataset Arguments Explained
+---
+title: "CustomImageDataset Arguments Explained"
+---
 
 ## Constructor Arguments
 
