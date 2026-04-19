@@ -113,3 +113,54 @@ target_transform = lambda y: one_hot(torch.tensor(y), num_classes=10)
 ---
 
 ## Complete Example
+
+```python
+import torch
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from torch.nn.functional import one_hot
+
+# 1. Define transforms
+image_transform = transforms.Compose([
+ transforms.Resize((28, 28)),
+ transforms.ConvertImageDtype(torch.float32),
+])
+
+label_transform = lambda y: one_hot(torch.tensor(y), num_classes=10).float()
+
+# 2. Instantiate dataset
+dataset = CustomImageDataset(
+ annotations_file="/data/fashion/annotations.csv",
+ img_dir="/data/fashion/images",
+ transform=image_transform,
+ target_transform=label_transform,
+)
+
+# 3. Inspect one sample
+img, label = dataset[0]
+print(img.shape) # torch.Size([3, 28, 28]) or [1, 28, 28] if grayscale
+print(label.shape) # torch.Size([10]) one-hot vector
+
+# 4. Wrap in DataLoader for batching
+loader = DataLoader(dataset, batch_size=64, shuffle=True)
+for batch_imgs, batch_labels in loader:
+ print(batch_imgs.shape) # torch.Size([64, 3, 28, 28])
+ print(batch_labels.shape) # torch.Size([64, 10])
+ break
+```
+
+---
+
+## Minimal Example (no transforms)
+
+```python
+dataset = CustomImageDataset(
+ annotations_file="annotations.csv",
+ img_dir="images/",
+)
+img, label = dataset[0]
+print(img.dtype, img.shape) # torch.uint8 torch.Size([3, H, W])
+print(type(label)) # <class 'numpy.int64'> ← raw from pandas
+```
+
+> 💡 Without target_transform, the label is whatever pandas returns (usually np.int64). You'll typically want at least torch.tensor(label) to feed into a loss function.
