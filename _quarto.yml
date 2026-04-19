@@ -111,6 +111,12 @@ book:
         - "contents/pytorch/torch_simple_model.ipynb"
         - "contents/pytorch/torch_dataloader.ipynb"
         - "contents/pytorch/torch_training_loop.ipynb"
+    - part: PyTorch Dataset & Loader
+      chapters: 
+        - text: "Dataset & DataLoader"
+          href: "contents/pytorch/dataset_dataloader.qmd"
+        - text: "`Dataset` Contract"
+          href: "contents/pytorch/dataset_contract.qmd"
     - references.qmd
 
 

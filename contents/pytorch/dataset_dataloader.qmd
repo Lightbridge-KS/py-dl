@@ -1,0 +1,97 @@
+---
+title: "Dataset & DataLoader: The Data Pipeline Duo"
+---
+
+Think of them as a **two-layer abstraction** with clear separation of concerns — a pattern you'll appreciate given your interest in software architecture.
+
+## Core Relationship
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Training Loop                        │
+│                   for batch in loader:                  │
+└────────────────────────┬────────────────────────────────┘
+                         │ asks for next batch
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                    DataLoader                           │
+│  ─────────────────────────────────────────────────────  │
+│  • Batching      (group N samples together)             │
+│  • Shuffling     (randomize order each epoch)           │
+│  • Parallelism   (num_workers → multiprocess loading)   │
+│  • Collation     (how to stack samples into a tensor)   │
+└────────────────────────┬────────────────────────────────┘
+                         │ calls dataset[i] for i in indices
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                     Dataset                             │
+│  ─────────────────────────────────────────────────────  │
+│  • __len__()     → how many samples exist?              │
+│  • __getitem__(i)→ return the i-th sample (x, y)        │
+│                                                         │
+│  Knows: where data lives, how to read ONE sample,       │
+│         how to transform it                             │
+└─────────────────────────────────────────────────────────┘
+```
+
+## The Division of Labor
+
+| Concern | Dataset | DataLoader |
+|---|---|---|
+| **What** is the data? | ✅ | ❌ |
+| **How** to read one sample? | ✅ | ❌ |
+| **How** to group samples? | ❌ | ✅ |
+| **When** to shuffle? | ❌ | ✅ |
+| **How many** parallel workers? | ❌ | ✅ |
+
+**Mental model**: `Dataset` answers *"give me sample #47"*. `DataLoader` answers *"give me the next batch of 32 samples, shuffled, loaded in parallel"*.
+
+## Minimal Example (Radiology-flavored)
+
+```python
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+class ChestXrayDataset(Dataset):
+    def __init__(self, image_paths, labels, transform=None):
+        self.image_paths = image_paths
+        self.labels = labels
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.image_paths)              # "how many?"
+
+    def __getitem__(self, idx):
+        img = load_image(self.image_paths[idx])   # "give me one"
+        if self.transform:
+            img = self.transform(img)
+        return img, self.labels[idx]              # returns (x, y)
+
+# Dataset = the "archive"
+dataset = ChestXrayDataset(paths, labels, transform=my_transforms)
+
+# DataLoader = the "worklist delivery system"
+loader = DataLoader(
+    dataset,
+    batch_size=32,       # 32 studies per batch
+    shuffle=True,        # randomize order each epoch
+    num_workers=4,       # 4 processes loading in parallel
+    pin_memory=True,     # faster CPU→GPU transfer
+)
+
+for images, labels in loader:      # images: [32, C, H, W]
+    # train step...
+```
+
+## Radiology Analogy
+
+Think of `Dataset` as the **PACS archive** — it knows where every study lives and how to retrieve one by accession number. `DataLoader` is the **reading worklist manager** — it decides which studies to batch together, in what order, and prefetches the next batch while you're reading the current one.
+
+## Why This Separation Matters (the SOLID lens)
+
+It's essentially **Single Responsibility Principle** applied to data pipelines:
+
+- You can swap the `Dataset` (CXR → CT → MRI) without touching training code.
+- You can change batch size or shuffling strategy without rewriting data loading.
+- You can unit-test `__getitem__` in isolation.
+- The same `Dataset` can feed a `DataLoader` during training (shuffled, batched) and a different one during inference (unshuffled, batch_size=1).

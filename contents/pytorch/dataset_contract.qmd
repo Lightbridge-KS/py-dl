@@ -1,0 +1,111 @@
+---
+title: "The `Dataset` Contract"
+---
+
+
+PyTorch's `torch.utils.data.Dataset` is essentially an **abstract base class** (like an interface in C# or an `abstract class` in Dart). To create a valid map-style dataset, you must fulfill a small but strict contract.
+
+## The Required Methods
+
+```
+┌──────────────────────────────────────────────────────────┐
+│              torch.utils.data.Dataset                    │
+│                   (abstract base)                        │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  REQUIRED (must override):                               │
+│  ─────────────────────────                               │
+│  __getitem__(self, idx) → sample                         │
+│      • Returns ONE sample given an index                 │
+│      • Typically returns (x, y) tuple or a dict          │
+│                                                          │
+│  STRONGLY EXPECTED (must override in practice):          │
+│  ────────────────────────────────────────────            │
+│  __len__(self) → int                                     │
+│      • Returns total number of samples                   │
+│      • Required by DataLoader's default sampler          │
+│      • Required for shuffle=True                         │
+│                                                          │
+│  OPTIONAL:                                               │
+│  ─────────                                               │
+│  __init__(self, ...)                                     │
+│      • Where you set up paths, transforms, metadata      │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+## The Subtle Truth
+
+Technically, PyTorch's source only declares `__getitem__` as abstract. But in practice, **`__len__` is non-optional** — without it:
+
+- `DataLoader` can't know when an epoch ends
+- `shuffle=True` breaks (the default `RandomSampler` needs the length)
+- Progress bars, `len(dataset)`, and most tooling fail
+
+So the *effective* contract is both methods.
+
+## Contract in Code Form
+
+```python
+from torch.utils.data import Dataset
+
+class MyDataset(Dataset):
+    def __init__(self, ...):       # optional but almost always needed
+        ...
+
+    def __getitem__(self, idx):    # REQUIRED
+        ...
+        return x, y                # tensors, tuple, or dict
+
+    def __len__(self):             # REQUIRED in practice
+        return N
+```
+
+## The Contract's Fine Print
+
+A few rules that aren't enforced by the type system but will bite you if broken:
+
+**1. `__getitem__` must return tensor-friendly data.**
+The default `collate_fn` can stack tensors, numbers, strings, and nested dicts/tuples of these — but not arbitrary Python objects. If you return a custom class, you'll need a custom `collate_fn`.
+
+**2. Return structure must be consistent across indices.**
+Every call to `__getitem__` should return the same *shape* of output (same tuple length, same dict keys, same tensor shapes if batching). Otherwise batching fails.
+
+**3. `__getitem__` should be thread/process-safe.**
+When `num_workers > 0`, multiple processes call `__getitem__` concurrently. Avoid shared mutable state; open file handles *inside* `__getitem__` or lazily, not in `__init__`.
+
+**4. Indices are integers in `[0, len-1]`.**
+DataLoader's samplers produce integer indices. You don't need to handle slices or negative indexing (though you can).
+
+## Minimal Valid Example
+
+```python
+class TinyDataset(Dataset):
+    def __init__(self):
+        self.data = torch.randn(100, 3)
+        self.labels = torch.randint(0, 2, (100,))
+
+    def __getitem__(self, idx):
+        return self.data[idx], self.labels[idx]
+
+    def __len__(self):
+        return 100
+```
+
+That's it — two methods, and you have a fully functional `Dataset` that any `DataLoader` can consume.
+
+## Comparison to Your Other Languages
+
+For intuition:
+
+| Language | Equivalent concept |
+|---|---|
+| C# | `interface IDataset<T> { T this[int idx] { get; } int Count { get; } }` |
+| Dart | `abstract class Dataset<T> { T operator [](int idx); int get length; }` |
+| Python/PyTorch | Duck-typed via `__getitem__` and `__len__` dunder methods |
+
+Python uses **protocol-style duck typing** — if your class has `__getitem__` and `__len__`, it *behaves* as a Dataset. Inheriting from `torch.utils.data.Dataset` is mostly about signaling intent and gaining a few helper mixins (like `__add__` for concatenation).
+
+## Quick Note: The Other `Dataset` Variant
+
+There's also `IterableDataset` for streaming data (logs, real-time feeds, data too large to index). Its contract is different — implement `__iter__` instead of `__getitem__` + `__len__`. Useful to know exists, but the map-style `Dataset` above is what you'll use 95% of the time.
