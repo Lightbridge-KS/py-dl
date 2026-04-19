@@ -117,6 +117,8 @@ book:
           href: "contents/pytorch/dataset_dataloader.qmd"
         - text: "`Dataset` Contract"
           href: "contents/pytorch/dataset_contract.qmd"
+        - text: "CustomImageDataset Arguments"
+          href: "contents/pytorch/custom_image_dataset_arguments.qmd"
     - references.qmd
 
 

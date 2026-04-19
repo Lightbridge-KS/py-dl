@@ -1,0 +1,115 @@
+# CustomImageDataset Arguments Explained
+
+## Constructor Arguments
+
+| Argument | Type | Required | Purpose |
+|---|---|---|---|
+| annotations_file | str or Path | ✅ Yes | Path to CSV mapping filenames → labels |
+| img_dir | str or Path | ✅ Yes | Directory containing the image files |
+| transform | Callable or None | ❌ Optional | Function applied to image (feature) |
+| target_transform | Callable or None | ❌ Optional | Function applied to label (target) |
+
+---
+
+## 1. annotations_file — the CSV
+
+A path to a CSV file with 2 columns, no header assumed (since the code uses iloc[idx, 0] and iloc[idx, 1]):
+
+annotations.csv
+┌─────────────────┬───────┐
+│ filename │ label │ ← column 0, column 1
+├─────────────────┼───────┤
+│ tshirt0001.jpg │ 0 │
+│ trouser0002.jpg │ 1 │
+│ sneaker0003.jpg │ 7 │
+│ ... │ ... │
+└─────────────────┴───────┘
+
+Shape: (N, 2) where N = number of samples.
+
+---
+
+## 2. img_dir — the image folder
+
+A directory path. Filenames inside must match column 0 of the CSV:
+
+/data/fashion/
+├── annotations.csv
+└── images/ ← this is img_dir
+ ├── tshirt0001.jpg
+ ├── trouser0002.jpg
+ └── sneaker0003.jpg
+
+Inside __getitem__, the full path is built as:
+
+img_path = img_dir + "/" + img_labels.iloc[idx, 0]
+ = "/data/fashion/images" + "/" + "tshirt0001.jpg"
+
+---
+
+## 3. transform — image preprocessing
+
+A callable that takes a tensor image and returns a transformed tensor.
+
+- Input shape (from decode_image): (C, H, W) — channels-first, uint8, values [0, 255]
+- Output shape: depends on transforms (commonly (C, H', W'), float32, values [0, 1])
+
+Typical use:
+
+from torchvision import transforms
+
+transform = transforms.Compose([
+ transforms.Resize((224, 224)), # (C, H, W) → (C, 224, 224)
+ transforms.ConvertImageDtype(torch.float32), # uint8 → float32, scale to [0,1]
+ transforms.Normalize(mean=[0.485, 0.456, 0.406],
+ std =[0.229, 0.224, 0.225]),
+])
+
+---
+
+## 4. target_transform — label preprocessing
+
+A callable applied to the label. Useful for one-hot encoding, type casting, etc.
+
+import torch
+from torch.nn.functional import one_hot
+
+# Convert integer label → one-hot tensor of length 10
+target_transform = lambda y: one_hot(torch.tensor(y), num_classes=10)
+
+---
+
+## Data Flow Diagram
+
+ annotations.csv img_dir/
+ │ │
+ ▼ ▼
+ ┌──────────┐ ┌──────────────┐
+ │ img_labels│ │ .jpg files │
+ │ DataFrame │ └──────┬───────┘
+ │ (N, 2) │ │
+ └─────┬────┘ │
+ │ │
+ iloc[idx,0]──┐ iloc[idx,0] used to build path
+ ▼ │
+ filename ──────────────► join
+ │
+ ▼
+ decode_image()
+ │
+ ▼
+ image tensor (C,H,W) uint8
+ │
+ transform (optional)
+ │
+ ▼
+ image tensor (C,H',W') float32
+
+ iloc[idx,1] ─► label (int) ─► target_transform ─► label tensor
+ │
+ ▼
+ return (image, label)
+
+---
+
+## Complete Example
