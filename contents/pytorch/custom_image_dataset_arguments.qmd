@@ -20,12 +20,12 @@ A path to a CSV file with 2 columns, no header assumed (since the code uses iloc
 ```text
 annotations.csv
 ┌─────────────────┬───────┐
-│ filename │ label │ ← column 0, column 1
+│ filename        │ label │   ← column 0, column 1
 ├─────────────────┼───────┤
-│ tshirt0001.jpg │ 0 │
-│ trouser0002.jpg │ 1 │
-│ sneaker0003.jpg │ 7 │
-│ ... │ ... │
+│ tshirt0001.jpg  │   0   │
+│ trouser0002.jpg │   1   │
+│ sneaker0003.jpg │   7   │
+│ ...             │  ...  │
 └─────────────────┴───────┘
 ```
 
@@ -50,7 +50,7 @@ Inside __getitem__, the full path is built as:
 
 ```python
 img_path = img_dir + "/" + img_labels.iloc[idx, 0]
- = "/data/fashion/images" + "/" + "tshirt0001.jpg"
+         = "/data/fashion/images" + "/" + "tshirt0001.jpg"
 ```
 
 ---
@@ -94,34 +94,34 @@ target_transform = lambda y: one_hot(torch.tensor(y), num_classes=10)
 ## Data Flow Diagram
 
 ```text
- annotations.csv img_dir/
- │ │
- ▼ ▼
- ┌──────────┐ ┌──────────────┐
- │ img_labels│ │ .jpg files │
- │ DataFrame │ └──────┬───────┘
- │ (N, 2) │ │
- └─────┬────┘ │
- │ │
- iloc[idx,0]──┐ iloc[idx,0] used to build path
- ▼ │
- filename ──────────────► join
- │
- ▼
- decode_image()
- │
- ▼
- image tensor (C,H,W) uint8
- │
- transform (optional)
- │
- ▼
- image tensor (C,H',W') float32
+annotations.csv                  img_dir/
+          │                          │
+          ▼                          ▼
+    ┌───────────┐              ┌──────────────┐
+    │ img_labels│              │  .jpg files  │
+    │ DataFrame │              └──────┬───────┘
+    │  (N, 2)   │                     │
+    └─────┬─────┘                     │
+          │                           │
+   iloc[idx,0]──┐           iloc[idx,0] used to build path
+                ▼                      │
+             filename ──────────────► join
+                                       │
+                                       ▼
+                                decode_image()
+                                       │
+                                       ▼
+                            image tensor (C,H,W) uint8
+                                       │
+                              transform (optional)
+                                       │
+                                       ▼
+                            image tensor (C,H',W') float32
 
- iloc[idx,1] ─► label (int) ─► target_transform ─► label tensor
- │
- ▼
- return (image, label)
+   iloc[idx,1] ─► label (int) ─► target_transform ─► label tensor
+                                       │
+                                       ▼
+                            return (image, label)
 ```
 
 ---
