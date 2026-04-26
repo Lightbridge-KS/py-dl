@@ -119,6 +119,8 @@ book:
           href: "contents/pytorch/dataset_contract.qmd"
         - text: "CustomImageDataset Arguments"
           href: "contents/pytorch/custom_image_dataset_arguments.qmd"
+        - text: "SMP vs nnU-Net Input Requirements"
+          href: "contents/pytorch/sam_nnunet_input_requirement.qmd"
     - references.qmd
 
 

@@ -1,0 +1,178 @@
+---
+title: "Input Requirements: `segmentation_models_pytorch` vs nnU-Net"
+---
+
+These two libraries sit at very different levels of abstraction, so their input expectations differ a lot. **SMP is just a model zoo** — you bring your own data pipeline. **nnU-Net is a full training framework** — it dictates the data layout in exchange for handling everything else.
+
+---
+
+## 1. segmentation_models_pytorch (SMP)
+
+### File Type
+
+SMP itself doesn't care. It's a collection of `nn.Module` classes (U-Net, U-Net++, FPN, DeepLabV3+, etc.). *You* write the `torch.utils.data.Dataset`, so it accepts whatever you can load — PNG, JPG, TIFF, DICOM (via `pydicom`), NIfTI (via `nibabel`/`SimpleITK`) — as long as you eventually return a tensor.
+
+### Tensor Shape
+
+```
+Input:   (B, C, H, W)
+         │  │  │  │
+         │  │  │  └─ Width  (must be divisible by 32 for most encoders)
+         │  │  └──── Height (must be divisible by 32 for most encoders)
+         │  └─────── Channels (3 if ImageNet-pretrained encoder;
+         │                     override via in_channels=N)
+         └────────── Batch
+
+Output:  (B, num_classes, H, W)
+
+  binary  : num_classes=1 → sigmoid → mask
+  multi   : num_classes=K → softmax → per-pixel class
+```
+
+The H/W divisibility-by-32 rule comes from the encoder's downsampling stride (typically 5 levels of /2). 224×224 is fine; 250×250 will throw a shape mismatch in the decoder skip connections.
+
+### Folder Structure
+
+None enforced. A common DIY pattern:
+
+```
+data/
+├── images/
+│   ├── case_001.png
+│   └── ...
+└── masks/
+    ├── case_001.png   (integer-valued, 1 channel, class index per pixel)
+    └── ...
+```
+
+In `Dataset.__getitem__`, you load image → tensor `(C, H, W)`, load mask → tensor `(H, W)` of class indices, return both. Augmentation is typically Albumentations.
+
+### Notes for Medical Imaging
+
+For medical imaging with SMP you'd typically:
+
+- Window/level the CT (e.g., lung WL=-600 WW=1500)
+- Normalize intensities
+- Resize/pad to a multiple of 32
+- Either set `in_channels=1` (losing ImageNet pretraining on that channel) or replicate the grayscale to 3 channels to keep pretrained weights useful
+
+---
+
+## 2. nnU-Net (v2)
+
+nnU-Net is opinionated. It expects a very specific layout, and in return it auto-configures architecture, patch size, normalization, and training schedule from dataset properties.
+
+### File Type
+
+Primarily NIfTI (`.nii.gz`). Also `.png`, `.tif`, `.nrrd`, `.mha` via pluggable image readers — declared once in `dataset.json`. **DICOM is not directly supported** — convert with `dcm2niix` or SimpleITK first.
+
+### Folder Structure
+
+Three root directories set via environment variables:
+
+```
+$nnUNet_raw            ← you put data here
+$nnUNet_preprocessed   ← framework writes here during planning
+$nnUNet_results        ← framework writes trained models here
+```
+
+Inside `$nnUNet_raw`:
+
+```
+nnUNet_raw/
+└── Dataset137_BraTS2021/              ← Dataset{3-digit ID}_{Name}
+    ├── dataset.json                   ← required metadata
+    ├── imagesTr/                      ← training images
+    │   ├── BRATS_001_0000.nii.gz      ← case 001, channel 0 (T1)
+    │   ├── BRATS_001_0001.nii.gz      ← case 001, channel 1 (T1c)
+    │   ├── BRATS_001_0002.nii.gz      ← case 001, channel 2 (T2)
+    │   ├── BRATS_001_0003.nii.gz      ← case 001, channel 3 (FLAIR)
+    │   ├── BRATS_002_0000.nii.gz
+    │   └── ...
+    ├── labelsTr/                      ← one label file per case
+    │   ├── BRATS_001.nii.gz           ← NO channel suffix
+    │   ├── BRATS_002.nii.gz
+    │   └── ...
+    └── imagesTs/                      ← optional test images
+        └── ...
+```
+
+### Naming Convention
+
+Strict and zero-padded:
+
+```
+imagesTr/  {case_id}_{channel:04d}.{ext}
+           └───┬────┘ └────┬─────┘ └─┬─┘
+            case ID   4-digit ch   from dataset.json
+
+labelsTr/  {case_id}.{ext}            ← same case_id, no channel index
+```
+
+For a single-modality task (e.g., CT only), every case has just `_0000`. For multi-modal MRI, `_0000` through `_0003`. The channel index *must* be zero-padded to 4 digits.
+
+### Minimal `dataset.json`
+
+```json
+{
+  "channel_names": { "0": "CT" },
+  "labels":        { "background": 0, "tumor": 1 },
+  "numTraining":   200,
+  "file_ending":   ".nii.gz"
+}
+```
+
+> **Note:** `channel_names` and dict-style `labels` are v2 syntax. v1 used `modality` and a list — different and incompatible.
+
+### Tensor Shape (Internal)
+
+You rarely touch this — nnU-Net loads NIfTI files itself. Internally:
+
+```
+3D mode:  (C, X, Y, Z)    ← channels first, then spatial
+2D mode:  (C, X, Y)       ← runs slice-wise
+
+Labels:   (X, Y, Z)       ← integer per voxel = class index
+```
+
+`C` is the number of modalities, stacked at load time from the per-channel NIfTI files. The framework handles patching, resampling to a common spacing, intensity normalization (z-score or CT-windowed, chosen automatically per dataset), and augmentation.
+
+---
+
+## 3. Mental Model
+
+```
+              ┌──────────────────────────────────────────────┐
+              │  You handle  →  Library handles              │
+              ├──────────────────────────────────────────────┤
+SMP           │  ████████████████░░░░  (most of it)          │
+              │  loading, windowing, augmentation,           │
+              │  training loop, loss, metrics                │
+              ├──────────────────────────────────────────────┤
+nnU-Net       │  ███░░░░░░░░░░░░░░░░░  (just file layout)    │
+              │  drop NIfTIs in folders,                     │
+              │  write dataset.json, run CLI                 │
+              └──────────────────────────────────────────────┘
+```
+
+### When to Choose Which
+
+- **SMP** — when you want fine control (custom DICOM windowing, novel augmentations, integration into a larger pipeline, or you're working with 2D natural-image-like inputs).
+- **nnU-Net** — when you want a strong baseline on a standard 3D medical segmentation task with minimal fuss. It's the de facto strong baseline in the field for a reason.
+
+---
+
+## Quick Reference Table
+
+| Aspect            | SMP                                  | nnU-Net (v2)                                       |
+|-------------------|--------------------------------------|----------------------------------------------------|
+| Abstraction level | Model zoo (`nn.Module`)              | Full training framework                            |
+| File type         | Anything you can load to tensor      | NIfTI primarily; PNG/TIFF/NRRD/MHA via readers     |
+| DICOM support     | Yes, via `pydicom` (you write it)    | No — must convert first (`dcm2niix`)               |
+| Tensor shape      | `(B, C, H, W)`                       | `(C, X, Y, Z)` 3D or `(C, X, Y)` 2D, internal      |
+| Size constraint   | H, W divisible by 32                 | Auto-handled by framework                          |
+| Folder layout     | Free-form (DIY)                      | Strict: `imagesTr/`, `labelsTr/`, `dataset.json`   |
+| File naming       | Free-form                            | `{case_id}_{channel:04d}.{ext}` strict             |
+| Preprocessing     | You write it                         | Auto-configured per dataset                        |
+| Augmentation      | You write it (e.g., Albumentations)  | Built-in                                           |
+| Training loop     | You write it                         | Built-in CLI                                       |
