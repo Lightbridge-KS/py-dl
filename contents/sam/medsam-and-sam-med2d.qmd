@@ -1,0 +1,202 @@
+---
+title: "MedSAM and SAM-Med2D: Adapting SAM for Medical Images"
+---
+
+MedSAM and SAM-Med2D are two of the most referenced SAM adaptation papers in medical imaging AI. They represent two different design philosophies for the same problem.
+
+## Why SAM struggles on medical images
+
+SAM was trained on SA-1B: 11 million natural images containing people, animals, objects, and scenes. When you point it at a chest CT or a pathology slide, it faces a substantial domain shift.
+
+```text
+Natural images                 Medical images
+--------------                 --------------
+- RGB, well-lit                - Grayscale CT/MR/X-ray, HU windowing
+- Clear edges                  - Fuzzy boundaries, such as tumors or edema
+- Whole, isolated objects      - Overlapping anatomy, partial volume
+- Few classes per scene        - Tiny lesions inside large organs
+- "What is this?" is obvious   - Requires expert prior knowledge
+```
+
+The image encoder produces features tuned for distinctions like dog versus couch versus floor, not ground-glass opacity versus consolidation. This is a classic domain shift problem, and the two papers solve it differently.
+
+## MedSAM
+
+Ma et al., Nature Communications 2024.
+
+Philosophy: do not change the architecture much. Feed it enormous amounts of medical data and use the most reliable prompt type.
+
+### Dataset
+
+MedSAM was trained on a curated dataset of about 1.57 million medical image-mask pairs, spanning roughly 10 imaging modalities and over 30 cancer types.
+
+Modalities include CT, MRI, X-ray, ultrasound, dermoscopy, endoscopy, fundus photography, mammography, OCT, and pathology.
+
+### Architectural changes
+
+The architectural changes are minimal:
+
+```text
++-----------------+       +-----------------+       +--------------+
+| Image Encoder   | ----> | Prompt Encoder  | ----> | Mask Decoder |
+| ViT-B           |       | BOX ONLY        |       |              |
+| fine-tuned      |       | frozen          |       | fine-tuned   |
++-----------------+       +-----------------+       +--------------+
+      FULL                    FROZEN                    FULL
+  fine-tuning                                      fine-tuning
+```
+
+Two key decisions matter.
+
+First, MedSAM uses bounding-box prompts only. It deliberately drops point and mask prompts. The reason is clinical: bounding boxes provide an unambiguous spatial specification of the target, avoiding the ambiguity that points can introduce in medical images.
+
+A point on a lung nodule could mean the nodule, the surrounding ground-glass opacity, or the whole lobe. A box leaves less room for ambiguity.
+
+Second, the prompt encoder is frozen. Since the box format is unchanged, there is little reason to retrain it.
+
+The model is fine-tuned end-to-end on the medical dataset: the image encoder and mask decoder weights are both updated.
+
+### Strengths and limits
+
+- Simple, reliable, and well validated across modalities.
+- Box-only prompting fits many radiology workflows, because drawing a box around a lesion is natural.
+- No point/click interaction, so it is less flexible than fully interactive SAM.
+- It does not bridge the 2D to 3D gap; CT and MR are still handled slice by slice.
+
+## SAM-Med2D
+
+Cheng et al., 2023, OpenGVLab.
+
+Philosophy: be comprehensive: bigger data, all prompt types, and parameter-efficient adapters so the huge encoder can be fine-tuned cheaply.
+
+### Dataset
+
+SAM-Med2D was built on approximately 4.6 million images and 19.7 million masks collected from public and private datasets.
+
+That is roughly three times MedSAM's image count, with a much larger mask count because medical images often contain multiple annotated structures per image.
+
+### Architectural changes
+
+SAM-Med2D fine-tunes all three SAM components, but uses a clever trick on the image encoder.
+
+```text
++----------------------------------+     +------------------+     +--------------+
+| Image Encoder (ViT)              | --> | Prompt Encoder   | --> | Mask Decoder |
+|                                  |     | point + box +    |     |              |
+| ViT weights mostly FROZEN        |     | mask             |     | fine-tuned   |
+| Adapter layers TRAINED           |     | fine-tuned       |     | full         |
++----------------------------------+     +------------------+     +--------------+
+```
+
+The big architectural innovation is adapter layers.
+
+### What is an adapter?
+
+An adapter is a small bottleneck neural network inserted inside every transformer block of the frozen ViT. The original SAM weights are kept frozen. Only the small adapters are trained.
+
+Inside one transformer block of the image encoder:
+
+```text
++--------------------------------------------------------------+
+| input --> frozen Self-Attention --> frozen MLP --> output    |
+|              |                         |                     |
+|              v                         v                     |
+|            Adapter                   Adapter                 |
++--------------------------------------------------------------+
+```
+
+Each adapter has a bottleneck structure:
+
+```text
+input
+  |
+  v
++-----------------+
+| Down-projection |   e.g. 768 -> 64 dims
++-----------------+
+  |
+  v
+ReLU activation
+  |
+  v
++---------------+
+| Up-projection |   e.g. 64 -> 768 dims
++---------------+
+  |
+  v
++ residual connection
+  |
+  v
+output
+```
+
+The adapter learns a small correction to the frozen feature, nudging it from natural image space toward medical image space.
+
+### Why adapters matter
+
+```text
+Approach                 Trainable parameters   GPU memory   Main risk
+--------                 --------------------   ----------   ---------
+Full fine-tuning ViT-H   about 636M             huge         catastrophic forgetting
+Adapter only             few million, ~1-5%     small        much safer
+```
+
+This is part of a broader family called parameter-efficient fine-tuning, or PEFT: adapters, LoRA, and prefix tuning. The term is worth knowing because it appears everywhere in modern model adaptation.
+
+### Comprehensive prompt support
+
+Unlike MedSAM, SAM-Med2D fine-tunes the prompt encoder using point, bounding-box, and mask information, while updating the mask decoder through interactive training.
+
+Interactive training means the model is trained to handle iterative click refinement: click once, see a mask, click a correction, then see a better mask. This mimics how a radiologist would actually use an interactive segmentation tool.
+
+## Side-by-side comparison
+
+```text
+                         MedSAM                    SAM-Med2D
+--------------------------------------------------------------------------
+Data size                ~1.57 M pairs             ~4.6 M images,
+                                                   ~19.7 M masks
+
+Image encoder            Full fine-tune            Frozen + adapters
+                         changes all weights       PEFT, ~few % params
+
+Prompt encoder           Frozen                    Fine-tuned
+                         box only                  point + box + mask
+
+Mask decoder             Fine-tuned                Fine-tuned
+
+Interactivity            Box-only, one-shot        Click refinement
+supported
+
+Best for                 Lesion-in-box             Interactive
+                         workflows                 annotation tools
+
+Philosophy               Minimal change,           Comprehensive change,
+                         mass data                 parameter-efficient
+```
+
+## What I would tell a radiologist starting out
+
+For work in a Radiology AI Unit, the practical takeaways are straightforward.
+
+If you have a click-to-annotate UI in mind, such as helping a resident speed up segmentation by clicking on a lesion, SAM-Med2D is the more natural fit because it handles points and iterative refinement.
+
+If your workflow is draw a box, get a mask, such as for tumor measurement or RECIST-style use, MedSAM is robust and easier to deploy.
+
+Both are 2D models. For volumetric CT/MR, there are several options:
+
+- Apply the model slice by slice. This is the simplest approach and what many clinical tools do.
+- Use MedSAM2, which adds memory across slices for video and 3D-style workflows.
+- Use 3DSAM-Adapter or MA-SAM, which insert 3D adapters.
+
+The adapter pattern from SAM-Med2D is the mental model to keep. Almost every modern medical foundation model adaptation, whether for segmentation, classification, or detection, uses some variant of PEFT such as adapters or LoRA.
+
+Understanding why we freeze the big backbone and train small modules is one of the most useful concepts in this field today.
+
+Both MedSAM and SAM-Med2D are available through Hugging Face or GitHub with PyTorch checkpoints, so they can be tried directly in a Jupyter notebook.
+
+## Suggested next steps
+
+- Adapters and LoRA in depth: the PEFT family, with PyTorch code.
+- MedSAM2 and SAM 2: how memory and 3D context get added to SAM for video and volumetric data.
+- Hands-on MedSAM in PyTorch: load a sample image, inspect embedding shapes, and trace the data flow.

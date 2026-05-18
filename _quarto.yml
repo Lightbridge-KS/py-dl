@@ -107,6 +107,8 @@ book:
       chapters:
         - text: "Image Encoder & Prompt Encoder in SAM"
           href: "contents/sam/sam-image-prompt-encoder.qmd"
+        - text: "MedSAM and SAM-Med2D"
+          href: "contents/sam/medsam-and-sam-med2d.qmd"
     - part: Keras
       chapters: 
         - "contents/keras/keras-mini-resnet-mnist.qmd"
