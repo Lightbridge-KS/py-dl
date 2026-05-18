@@ -103,6 +103,10 @@ book:
           href: "contents/unet/unet-last-layer-2ch.qmd"
         - text: U-Net from Scratch PyTorch
           href: "contents/unet/unet-pytorch.qmd"
+    - part: SAM
+      chapters:
+        - text: "Image Encoder & Prompt Encoder in SAM"
+          href: "contents/sam/sam-image-prompt-encoder.qmd"
     - part: Keras
       chapters: 
         - "contents/keras/keras-mini-resnet-mnist.qmd"
