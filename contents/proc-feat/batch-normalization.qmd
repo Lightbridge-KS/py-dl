@@ -234,3 +234,59 @@ Conv2d out_channels == BatchNorm2d num_features
 ```
 
 For example, if a convolution produces 16 feature maps, BN needs 16 channels of statistics and 16 pairs of learnable `gamma` and `beta` parameters.
+
+The key argument is:
+
+```python
+nn.BatchNorm2d(num_features)
+```
+
+Here, `num_features` must equal the number of channels coming out of the convolution. BN keeps the following values per channel:
+
+- one learnable $\gamma$
+- one learnable $\beta$
+- one running mean
+- one running variance
+
+So `nn.BatchNorm2d(16)` means:
+
+```text
+16 output channels from Conv2d
+16 gamma values
+16 beta values
+16 running means
+16 running variances
+```
+
+## What BN Buys You
+
+BN became popular because it makes CNN training much easier in practice.
+
+**Faster training** — activations stay in a more stable range, so optimization usually progresses faster.
+
+**Higher learning rates** — because intermediate distributions are less chaotic, the model can often tolerate larger learning rates.
+
+**Less sensitivity to weight initialization** — even if early weights produce poorly scaled activations, BN recenters and rescales them.
+
+**Mild regularization** — during training, each mini-batch has slightly different statistics. This adds noise to the activations, somewhat similar in spirit to dropout.
+
+**Deeper networks become trainable** — architectures such as ResNet-50, ResNet-101, and deeper variants rely heavily on BN to keep optimization stable.
+
+## Caveat: Small Batch Size
+
+BN works poorly when batch size is very small, such as 1 to 4 samples, because the batch statistics become noisy and unreliable.
+
+This matters in medical imaging. For 3D CT or MRI volumes, GPU memory often forces very small batch sizes. In those settings, people often switch from batch normalization to alternatives such as:
+
+- Group normalization
+- Instance normalization
+- Layer normalization
+
+The practical rule:
+
+```text
+Large enough batch size → BatchNorm is usually fine
+Tiny batch size         → consider GroupNorm or InstanceNorm
+```
+
+For radiology models, this caveat is not theoretical. It is one reason many 3D medical imaging architectures avoid BN or use normalization layers that do not depend strongly on the batch dimension.
