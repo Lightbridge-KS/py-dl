@@ -71,6 +71,7 @@ book:
     - part: Feature Processing
       chapters: 
         - "contents/proc-feat/conv-2d3d.qmd"
+        - "contents/proc-feat/batch-normalization.qmd"
     - part: Logistic Regression
       chapters: 
         - "contents/logreg/pytorch-logreg-concept.qmd"
