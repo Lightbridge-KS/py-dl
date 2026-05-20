@@ -18,6 +18,15 @@ The difference is usually *where* the architecture improves the information flow
 
 These variants appear often in medical image segmentation papers because they address practical weaknesses of vanilla U-Net without abandoning its core shape.
 
+## Timeline at a Glance
+
+| Model | Year | Core Innovation | Key Paper | Citations (approx.) |
+| --- | --- | --- | --- | ---: |
+| U-Net | 2015 | Encoder-decoder with skip connections | Ronneberger et al., MICCAI 2015 | 118,000+ |
+| Residual U-Net | 2017-18 | Residual blocks inside U-Net | Zhang et al., arXiv 2018 | 1,500+ |
+| U-Net++ | 2018 | Nested dense skip pathways | Zhou et al., MICCAI 2018 | 6,000+ |
+| Attention U-Net | 2018 | Attention gates for selective skip features | Oktay et al., MICCAI 2018 | 5,500+ |
+
 ## Residual U-Net
 
 ### Motivation
