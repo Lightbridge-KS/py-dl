@@ -189,18 +189,53 @@ X40
 
 The important idea is not the exact drawing. The key idea is that skip connections become *nested and dense*. Features are refined step by step before being merged into the decoder.
 
+Each intermediate node `X^{i,j}` where `j > 0` receives two kinds of input:
+
+- all previous nodes at the same depth level: `X^{i,0}`, `X^{i,1}`, ..., `X^{i,j-1}`
+- the upsampled feature from one level below: `X^{i+1,j-1}`
+
+Then it concatenates these inputs and passes them through a convolution block.
+
+```text
+X^{i,j}
+  =
+ConvBlock(
+  concat(
+    X^{i,0},
+    X^{i,1},
+    ...,
+    X^{i,j-1},
+    upsample(X^{i+1,j-1})
+  )
+)
+```
+
+This is why U-Net++ is often described as having DenseNet-style skip pathways. The nodes at the same level are not isolated; they accumulate and reuse features from earlier nodes.
+
 ### Deep Supervision
 
 U-Net++ is also commonly associated with deep supervision. Instead of using only the final output, the model can attach segmentation heads to multiple decoder depths:
 
 ```text
-X01 -> auxiliary output
-X02 -> auxiliary output
-X03 -> auxiliary output
-X04 -> final output
+X01 -> 1x1 Conv -> sigmoid -> auxiliary output
+X02 -> 1x1 Conv -> sigmoid -> auxiliary output
+X03 -> 1x1 Conv -> sigmoid -> auxiliary output
+X04 -> 1x1 Conv -> sigmoid -> final output
 ```
 
-During training, these auxiliary outputs provide extra gradient signals. During inference, they may be averaged, selected, or pruned depending on the implementation.
+Because `X^{0,1}`, `X^{0,2}`, `X^{0,3}`, and `X^{0,4}` are all full-resolution feature maps, each can produce a segmentation mask. During training, the loss from these outputs can be averaged:
+
+```text
+total loss = mean(loss_1, loss_2, loss_3, loss_4)
+```
+
+This gives the model gradient signals at multiple depths, not only from the deepest final output.
+
+### Model Pruning
+
+Deep supervision also enables model pruning. If shallower outputs are already good enough, deeper parts of the nested decoder can be removed during inference to produce a faster model.
+
+That is useful for deployment on weaker hardware. The model can trade some accuracy for lower latency while still producing a valid segmentation output.
 
 ### When to Use It
 
@@ -213,7 +248,9 @@ In radiology AI, this can matter for small or subtle targets, such as:
 - vessels
 - organ boundaries with weak contrast
 
-The tradeoff is complexity. U-Net++ has more convolution nodes than vanilla U-Net, so it is heavier and can be slower.
+It is especially relevant when the same image contains structures at very different scales, such as small lesions alongside larger organs.
+
+The tradeoff is complexity. U-Net++ has more convolution nodes than vanilla U-Net, so it has more parameters, uses more memory, and can be slower. In exchange, it often improves Dice scores on medical segmentation datasets.
 
 ## Attention U-Net
 
@@ -272,6 +309,68 @@ Conceptually:
 raw skip feature -> keep useful regions, suppress irrelevant regions -> decoder
 ```
 
+More explicitly:
+
+```text
+x_enc -> Attention Gate -> alpha * x_enc -> concat -> decoder block
+           ^
+           |
+           g = gating signal from the deeper decoder feature
+```
+
+The attention coefficient map `alpha` has values between 0 and 1:
+
+```text
+alpha near 0 -> suppress this location
+alpha near 1 -> pass this location through
+```
+
+The multiplication is element-wise:
+
+```text
+gated skip feature = alpha ⊙ x_enc
+```
+
+where `⊙` means element-wise multiplication.
+
+### Inside the Attention Gate
+
+The attention gate combines a shallow encoder feature with a deeper decoder gating signal.
+
+```text
+x_enc                         g
+(skip feature)                (gating signal)
+   |                           |
+   v                           v
+[Conv 1x1]                  [Conv 1x1]
+   |                           |
+   +------------ (+) ----------+
+                 |
+                 v
+              [ReLU]
+                 |
+                 v
+              [Conv 1x1]
+                 |
+                 v
+              [Sigmoid]
+                 |
+                 v
+        alpha attention map
+                 |
+                 v
+           alpha ⊙ x_enc
+                 |
+                 v
+          gated skip feature
+```
+
+The clever part is the source of `g`. It comes from the decoder feature one level deeper, so it contains higher-level semantic context. The gate asks:
+
+```text
+"Given what the deeper decoder already understands, which parts of this shallow encoder map are relevant?"
+```
+
 ### Intuition
 
 Think of the decoder as asking:
@@ -295,15 +394,17 @@ Examples in medical imaging:
 - gland or organ segmentation in cluttered anatomy
 - structures with weak contrast against surrounding tissue
 
-The tradeoff is that attention gates add extra parameters and computation, though usually less than the dense skip grid of U-Net++.
+Attention U-Net is especially useful when the target has high inter-patient variability, such as pancreas segmentation, small tumors, or lymph nodes.
+
+The tradeoff is that attention gates add extra parameters and computation, though usually less than the dense skip grid of U-Net++. In return, they can improve boundary precision and reduce false positives in irrelevant background regions.
 
 ## Quick Comparison
 
 | Family | Main Change | Problem It Solves | Tradeoff |
 | --- | --- | --- | --- |
-| Residual U-Net | Replaces plain blocks with residual blocks | Makes deeper U-Nets easier to train | Slightly more complexity |
-| U-Net++ | Adds nested dense skip pathways | Reduces semantic gap between encoder and decoder | Heavier and more complex |
-| Attention U-Net | Adds attention gates to skip connections | Suppresses irrelevant skip features | Extra parameters and compute |
+| Residual U-Net | Conv blocks | Vanishing gradients; deeper training | Small |
+| U-Net++ | Skip pathway | Semantic gap between encoder and decoder | Large |
+| Attention U-Net | Skip connection | Irrelevant background in skip features | Modest |
 
 ## Practical Takeaway
 
