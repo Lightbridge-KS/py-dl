@@ -1,0 +1,328 @@
+---
+title: "Modern U-Net Families"
+---
+
+Once the vanilla U-Net pattern is clear, many later segmentation architectures become easier to understand. Most U-Net descendants keep the same encoder-decoder skeleton:
+
+```text
+encoder -> bottleneck -> decoder
+   |                       ^
+   +---- skip connections -+
+```
+
+The difference is usually *where* the architecture improves the information flow:
+
+- **Residual U-Net** improves the convolution blocks.
+- **U-Net++** improves the skip pathways between encoder and decoder.
+- **Attention U-Net** improves which encoder features are allowed through the skip connections.
+
+These variants appear often in medical image segmentation papers because they address practical weaknesses of vanilla U-Net without abandoning its core shape.
+
+## Residual U-Net
+
+### Motivation
+
+Vanilla U-Net uses plain convolution blocks, usually in this pattern:
+
+```text
+Conv -> BN -> ReLU -> Conv -> BN -> ReLU
+```
+
+This works well for moderate depth. But when the model becomes deeper, gradients can become weak as they backpropagate through many layers. Training becomes harder, and adding depth may stop helping.
+
+ResNet solved this problem for image classification with a simple idea: instead of forcing a block to learn the full mapping directly, let it learn a residual correction.
+
+If the desired mapping is:
+
+$$
+H(x)
+$$
+
+then a residual block learns:
+
+$$
+F(x) = H(x) - x
+$$
+
+and the block output becomes:
+
+$$
+H(x) = F(x) + x
+$$
+
+The shortcut path lets information and gradients flow more directly through the network.
+
+Residual U-Net applies this idea to U-Net by replacing each plain convolution block with a residual block. The global U-shape remains the same.
+
+### Architecture Difference
+
+Plain U-Net block:
+
+```text
+x -> Conv 3x3 -> BN -> ReLU -> Conv 3x3 -> BN -> ReLU -> out
+```
+
+Residual U-Net block:
+
+```text
+                identity / shortcut
+          +-----------------------------+
+          |                             v
+x --------+-> Conv 3x3 -> BN -> ReLU -> Conv 3x3 -> BN -> (+) -> ReLU -> out
+```
+
+The encoder, decoder, and long U-Net skip connections are still present. The change is inside each local block.
+
+If the input and output channels are different, the shortcut cannot be a simple identity. In that case, a `1x1` convolution is used to match dimensions. This is called a projection shortcut.
+
+```text
+channel mismatch:
+
+x -> Conv 1x1 --------------------------+
+                                        v
+x -> Conv 3x3 -> BN -> ReLU -> Conv 3x3 -> BN -> (+) -> ReLU
+```
+
+### Tiny PyTorch Sketch
+
+```python
+import torch.nn as nn
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_ch, out_ch, 3, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_ch)
+        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_ch)
+
+        # Projection shortcut if the channel count changes.
+        self.shortcut = (
+            nn.Conv2d(in_ch, out_ch, 1)
+            if in_ch != out_ch
+            else nn.Identity()
+        )
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        identity = self.shortcut(x)
+
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+
+        return self.relu(out + identity)
+```
+
+### When to Use It
+
+Residual U-Net is useful when you want a deeper U-Net without making optimization fragile. It is often a drop-in upgrade: keep the U-Net layout, but use residual blocks instead of plain convolution blocks.
+
+In medical imaging, this is attractive when the segmentation target requires richer features, such as complex organs, lesions with variable appearance, or multi-scale anatomy.
+
+## U-Net++
+
+### Motivation
+
+Vanilla U-Net sends encoder features directly to decoder features at the same spatial resolution:
+
+```text
+encoder feature ---------------------> decoder feature
+```
+
+This is powerful, but there is a semantic gap.
+
+Early encoder features are low-level: edges, textures, local contrast, and boundaries. Decoder features are more semantically processed: organs, lesions, and object-level structures. Directly concatenating these two feature types can be suboptimal because they live in different representational spaces.
+
+U-Net++ addresses this by inserting intermediate convolution nodes along the skip pathways. Instead of one long skip connection, features are progressively refined before they reach the decoder.
+
+### Architecture Difference
+
+Use the notation:
+
+```text
+X^{i,j}
+```
+
+where:
+
+- `i` is the depth level.
+- `j` is the position along the skip pathway.
+- `X^{0,0}` is the top encoder feature.
+- Larger `j` means a more refined skip node.
+
+Vanilla U-Net has mostly outer skip connections:
+
+```text
+X00 -----------------------------> X04
+  |
+  v
+X10 -------------------------> X13
+  |
+  v
+X20 ---------------------> X22
+  |
+  v
+X30 -----------------> X31
+  |
+  v
+X40
+```
+
+U-Net++ fills in intermediate nodes:
+
+```text
+X00 -> X01 -> X02 -> X03 -> X04
+ |      ^      ^      ^      ^
+ v     /      /      /      /
+X10 -> X11 -> X12 -> X13
+ |      ^      ^      ^
+ v     /      /      /
+X20 -> X21 -> X22
+ |      ^      ^
+ v     /      /
+X30 -> X31
+ |
+ v
+X40
+```
+
+The important idea is not the exact drawing. The key idea is that skip connections become *nested and dense*. Features are refined step by step before being merged into the decoder.
+
+### Deep Supervision
+
+U-Net++ is also commonly associated with deep supervision. Instead of using only the final output, the model can attach segmentation heads to multiple decoder depths:
+
+```text
+X01 -> auxiliary output
+X02 -> auxiliary output
+X03 -> auxiliary output
+X04 -> final output
+```
+
+During training, these auxiliary outputs provide extra gradient signals. During inference, they may be averaged, selected, or pruned depending on the implementation.
+
+### When to Use It
+
+U-Net++ is useful when precise segmentation boundaries matter and when the semantic gap between encoder and decoder features may hurt performance.
+
+In radiology AI, this can matter for small or subtle targets, such as:
+
+- small lesions
+- thin structures
+- vessels
+- organ boundaries with weak contrast
+
+The tradeoff is complexity. U-Net++ has more convolution nodes than vanilla U-Net, so it is heavier and can be slower.
+
+## Attention U-Net
+
+### Motivation
+
+Vanilla U-Net copies encoder features into the decoder through skip connections. This helps localization, but it also passes irrelevant background features.
+
+For medical images, the region of interest may occupy only a small part of the image. A skip connection may carry useful boundary information, but also a lot of irrelevant anatomy, noise, or background.
+
+Attention U-Net adds attention gates to the skip connections. The model learns to suppress irrelevant encoder features and emphasize features that matter for the current decoding stage.
+
+### Architecture Difference
+
+Vanilla U-Net skip connection:
+
+```text
+encoder feature ---------------------------> concatenate with decoder feature
+```
+
+Attention U-Net skip connection:
+
+```text
+encoder feature -> attention gate ---------> concatenate with decoder feature
+                       ^
+                       |
+                 decoder context
+```
+
+The attention gate receives two signals:
+
+- the encoder feature from the skip connection
+- a decoder feature that acts as a gating signal
+
+The decoder feature tells the gate what the model is currently trying to reconstruct. The gate then weights the encoder feature before passing it forward.
+
+### Plain Text Diagram
+
+```text
+Encoder feature map
+    |
+    v
+┌─────────────────┐
+│ Attention Gate  │ <---- Decoder gating signal
+└─────────────────┘
+    |
+    v
+Filtered encoder feature
+    |
+    v
+Concatenate with decoder feature
+```
+
+Conceptually:
+
+```text
+raw skip feature -> keep useful regions, suppress irrelevant regions -> decoder
+```
+
+### Intuition
+
+Think of the decoder as asking:
+
+```text
+"At this stage, which encoder details are useful for the mask I am reconstructing?"
+```
+
+The attention gate answers by producing a spatial weighting map. Regions that look relevant get stronger weights; regions that look irrelevant get weaker weights.
+
+This is especially useful when the target is small or surrounded by distracting structures.
+
+### When to Use It
+
+Attention U-Net is useful when the segmentation target is spatially localized or easy to confuse with background anatomy.
+
+Examples in medical imaging:
+
+- small tumor segmentation
+- lesion segmentation
+- gland or organ segmentation in cluttered anatomy
+- structures with weak contrast against surrounding tissue
+
+The tradeoff is that attention gates add extra parameters and computation, though usually less than the dense skip grid of U-Net++.
+
+## Quick Comparison
+
+| Family | Main Change | Problem It Solves | Tradeoff |
+| --- | --- | --- | --- |
+| Residual U-Net | Replaces plain blocks with residual blocks | Makes deeper U-Nets easier to train | Slightly more complexity |
+| U-Net++ | Adds nested dense skip pathways | Reduces semantic gap between encoder and decoder | Heavier and more complex |
+| Attention U-Net | Adds attention gates to skip connections | Suppresses irrelevant skip features | Extra parameters and compute |
+
+## Practical Takeaway
+
+All three families preserve the core U-Net idea:
+
+```text
+compress for context, expand for localization, use skips for detail
+```
+
+They differ in what they improve:
+
+```text
+Residual U-Net  -> better local blocks
+U-Net++         -> better skip pathway refinement
+Attention U-Net -> better skip feature selection
+```
+
+For radiology segmentation, the choice often depends on the failure mode:
+
+- If the model is too shallow or hard to optimize, consider **Residual U-Net**.
+- If skip connections feel semantically mismatched, consider **U-Net++**.
+- If the model is distracted by irrelevant background, consider **Attention U-Net**.

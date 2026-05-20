@@ -104,6 +104,8 @@ book:
           href: "contents/unet/unet-last-layer-2ch.qmd"
         - text: U-Net from Scratch PyTorch
           href: "contents/unet/unet-pytorch.qmd"
+        - text: Modern U-Net Families
+          href: "contents/unet/unet-modern-families.qmd"
     - part: SAM
       chapters:
         - text: "Image Encoder & Prompt Encoder in SAM"
