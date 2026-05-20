@@ -427,3 +427,19 @@ For radiology segmentation, the choice often depends on the failure mode:
 - If the model is too shallow or hard to optimize, consider **Residual U-Net**.
 - If skip connections feel semantically mismatched, consider **U-Net++**.
 - If the model is distracted by irrelevant background, consider **Attention U-Net**.
+
+These ideas are also composable. It is common to see papers combine them into architectures such as:
+
+- Residual Attention U-Net
+- Attention U-Net++
+- Residual U-Net++
+
+The naming can look messy, but the underlying logic is usually straightforward:
+
+```text
+Residual       -> improve the conv blocks
+Attention      -> gate the skip features
+U-Net++ style  -> densify and refine the skip pathways
+```
+
+After this 2018-era wave of U-Net variants, later medical segmentation systems pushed the idea further. Examples include transformer-hybrid models such as TransUNet, and strong practical frameworks such as nnU-Net. Those newer descendants still inherit much of the original U-Net intuition: combine semantic context with spatial detail, then adapt the design to the dataset and deployment constraints.
