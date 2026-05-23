@@ -1,0 +1,76 @@
+---
+title: "Deeplearning Evaluation Metrics"
+---
+
+The metrics themselves (accuracy, precision, recall, AUROC...) are mostly identical math. What changes in deep learning is the *framework around* the metrics. Let me give you the map.
+
+## The one idea that reorganizes everything: loss ≠ metric
+
+In traditional ML you often optimize and evaluate with closely related things. In deep learning, two distinct quantities live side by side:
+
+```
+   LOSS                      METRIC
+   ─────                     ──────
+ What the model            What humans
+ optimizes during          actually care
+ training (must be         about (can be
+ differentiable)           non-differentiable)
+
+ e.g. Cross-Entropy        e.g. Accuracy,
+      Dice Loss                 Dice score, AUROC
+
+        │                        │
+        ▼                        ▼
+  Guides gradient          Judges quality;
+  descent, updates         reported in papers,
+  weights every step       used for model selection
+```
+
+Why split them? Because the thing you care about (e.g. "did we classify the tumor correctly") is often a *step function* — flat gradients, useless for backprop. So you train on a smooth surrogate (cross-entropy) but *judge* on the real metric (accuracy, Dice, etc.). A model can have decreasing loss yet a metric that plateaus — and that gap is itself diagnostic information.
+
+## The landscape, organized by task
+
+This is the part that's genuinely broader than traditional tabular ML. Deep learning spans many task types, each with its own metric family:
+
+```
+TASK              TYPICAL METRICS
+────              ───────────────
+Classification    Accuracy, Precision/Recall,
+                  F1, AUROC, AUPRC, confusion matrix
+                  → same as traditional ML
+
+Segmentation      Dice (F1 for pixels), IoU/Jaccard,
+                  Hausdorff distance
+                  → core to medical imaging
+
+Object detection  mAP (mean Average Precision),
+                  IoU thresholds (e.g. mAP@0.5)
+
+Regression        MAE, MSE, RMSE, R²
+                  → same as traditional ML
+
+Generation        FID (images), BLEU/ROUGE (text),
+                  perplexity (language models)
+```
+
+For your world specifically, segmentation and detection metrics (Dice, IoU, mAP) are where deep learning adds the most that's *new* relative to classical ML — they measure spatial overlap, not just label correctness.
+
+## The third axis: you watch metrics *over time*
+
+In traditional ML you often get one final score. In deep learning, evaluation is temporal — you track loss and metrics across training epochs on separate splits:
+
+```
+score
+  │      val metric (what we select on)
+  │     ╱‾‾‾‾‾‾‾‾‾‾‾  ← plateaus / dips = overfitting
+  │    ╱
+  │   ╱___________  train metric (keeps rising)
+  │  ╱
+  └──────────────────────► epochs
+```
+
+The *gap* between train and validation curves is how you read overfitting, underfitting, and when to stop training. This continuous monitoring discipline is a defining feature of DL evaluation that barely exists in simple traditional ML workflows.
+
+---
+
+So the broad picture: **same metrics, three new lenses** — (1) loss vs metric separation, (2) a much wider menu organized by task type, (3) metrics tracked across training, not just at the end.

@@ -1,0 +1,101 @@
+---
+title: "Loss Curve"
+---
+
+The loss curve is the single most-watched plot in deep learning, and reading it well is a genuine skill. Let me build the concept up properly.
+
+## What the curve actually plots
+
+The y-axis is the **loss value** (averaged over a dataset), the x-axis is **training progress** (epochs — one full pass over the training data). You plot it for *two* datasets at once:
+
+```
+loss
+  │ ●  ← training loss: computed on data the
+  │  ●    model learns from. Gradient descent
+  │   ●   is literally pushing THIS down.
+  │    ●●●●●●●●●
+  │
+  │ ○  ← validation loss: computed on held-out
+  │  ○○   data the model NEVER updates weights on.
+  │     ○○○○○○○   This is the HONEST signal.
+  └──────────────────────► epochs
+```
+
+The crucial asymmetry: training loss almost always falls, because the model is directly minimizing it. Validation loss is the one that tells you the truth — whether what the model learned actually *generalizes* to data it hasn't seen.
+
+## Why the gap is the whole story
+
+A model can lower its training loss in two fundamentally different ways:
+
+```
+  Learn REAL patterns  ──→ helps on training AND validation
+  Memorize NOISE/quirks ──→ helps on training, USELESS (then harmful) on validation
+   specific to the
+   training set
+```
+
+The gap between the two curves separates these two behaviors. A small, stable gap means the model is learning structure that transfers. A *growing* gap means the model is increasingly just memorizing its training data.
+
+## The three canonical shapes
+
+**Underfitting** — both curves high, close together, flat or barely moving:
+
+```
+loss
+  │●○●○●○●○●○●○   both stuck high, riding together
+  │
+  └──────────────► epochs
+```
+The model hasn't even captured the training signal. Causes: too little capacity, too few epochs, learning rate too low. The model is too simple for the problem.
+
+**Good fit** — both descend and settle low, with a modest stable gap:
+
+```
+loss
+  │●
+  │ ○
+  │  ●○
+  │    ●●○○
+  │       ●●●●●●  ← train
+  │        ○○○○○  ← val, small steady gap above
+  └──────────────► epochs
+```
+
+**Overfitting** — train keeps falling toward zero, but val descends, bottoms out, then *turns upward*:
+
+```
+loss
+  │○            ○○○  ← val turns back UP
+  │ ●○        ○○
+  │   ●○    ○○        ← the divergence point
+  │     ●○○○            is the key event
+  │       ●●●●●●●●●●  ← train keeps sliding toward 0
+  └──────────────────► epochs
+         ▲
+    val minimum
+```
+This U-shape in the validation curve, while training keeps dropping, is the signature of overfitting. The model is now memorizing training-set noise — which lowers train loss but actively hurts on unseen data.
+
+## Early stopping = pick the val minimum
+
+Once you see the shape above, the best model isn't the one at the end of training — it's the snapshot at the **validation minimum**. Everything to the left is still improving; everything to the right is memorizing.
+
+```
+        keep training              stop here
+        (still improving)      (val starts rising)
+   ─────────────────────────┼───────────────────────
+                             ▲
+                      best generalization
+```
+
+Conceptually, early stopping watches validation loss and halts when it stops improving — usually with a **patience** parameter (e.g. "stop if no improvement for 10 epochs"), because the curve is noisy and you don't want to react to a single bad epoch. You then restore the weights from the best epoch, not the last one.
+
+## Two subtleties that confuse newcomers
+
+**Validation loss can sit *below* training loss early on.** This looks alarming but is often normal — regularization like dropout is active during training but switched off during validation, so the model is "handicapped" while you measure train loss. Not a bug.
+
+**Validation *loss* can rise while a *metric* like accuracy holds steady.** This ties straight back to our loss-vs-metric distinction. Loss heavily penalizes *confident wrong answers*. A model can grow overconfident — pushing loss up — while still putting predictions on the correct side of the decision boundary, so accuracy stays flat. This is why "which quantity do I early-stop on?" is a real decision, not an obvious one. For something like tumor classification you might stop on the metric you actually report, not on raw loss.
+
+---
+
+So the mental model: **train loss is what's optimized, validation loss is what's trusted, and the relationship between the two curves — together, not individually — is the diagnostic instrument.**

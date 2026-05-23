@@ -1,0 +1,118 @@
+---
+title: "Classification metrics"
+---
+
+Classification metrics are the place where the math barely changes from classical ML — but a few things get *more interesting* in deep learning. Let me anchor everything to one pipeline first, because it explains why metrics split into two families.
+
+## The pipeline that organizes everything
+
+A DL classifier doesn't output a class. It outputs raw scores (**logits**), squashed into probabilities, and only *then* a threshold turns probability into a decision:
+
+```
+logits      probabilities        decision
+ 2.1   ──softmax/──→  0.87   ──threshold──→  "positive"
+-0.4    sigmoid       0.13      (e.g. 0.5)
+  │           │            │
+  raw       calibrated?   THIS step is a
+  network   confidence    free parameter
+  output                  you choose later
+```
+
+↪ **The interesting bit:** in classical ML you often think "model → label." In DL the threshold is an explicit, movable knob applied *after* training. This is why metrics fall into two camps — those that depend on the threshold you picked, and those that don't.
+
+## The foundation: confusion matrix
+
+Same as you know it — every threshold-dependent metric is just a ratio of these four cells:
+
+```
+                    PREDICTED
+                Positive   Negative
+  ACTUAL  Pos │   TP    │    FN    │  ← actual positives
+          Neg │   FP    │    TN    │  ← actual negatives
+```
+
+## Family 1 — threshold-dependent metrics
+
+These are computed *after* you've committed to a threshold:
+
+```
+Accuracy     = (TP+TN)/all      "overall % correct"
+Precision    = TP/(TP+FP)       "of predicted-pos, how many real"  (PPV)
+Recall       = TP/(TP+FN)       "of actual-pos, how many caught"   (Sensitivity)
+Specificity  = TN/(TN+FP)       "of actual-neg, how many cleared"
+F1           = harmonic mean of Precision & Recall
+```
+
+For you these map directly onto clinical language: **Recall = Sensitivity**, **Precision = PPV**, and **Specificity** is recall's mirror image on the negative class. The clinical sensitivity/specificity pair and the ML precision/recall pair are the same four cells viewed from different angles.
+
+The accuracy trap is worth restating because DL medical datasets are so often imbalanced: with 1% disease prevalence, a model predicting "healthy" always scores 99% accuracy while catching zero cases. Accuracy hides this; precision/recall expose it.
+
+F1 exists because precision and recall trade off — push the threshold down to catch more cases (↑recall) and you let in more false alarms (↓precision). The **harmonic** mean (not arithmetic) is used deliberately so that one bad number drags the score down — you can't compensate for terrible recall with great precision.
+
+## Family 2 — threshold-independent metrics
+
+These sweep across *every possible threshold* and summarize the whole trade-off as one number. This is where DL's "movable threshold" mindset pays off.
+
+**AUROC** — plots Sensitivity vs (1−Specificity) as you slide the threshold:
+
+```
+TPR │        ╱──────  perfect (AUC→1.0)
+(sens)      ╱  ╱
+    │      ╱ ╱  ← a good model bows
+    │    ╱ ╱       toward top-left
+    │  ╱ ╱
+    │╱╱_____ random guessing (AUC=0.5)
+    └──────────────► FPR (1 − specificity)
+```
+AUROC ≈ "probability the model ranks a random positive above a random negative." Threshold-free, so it measures *discrimination* — how well the model separates classes regardless of where you eventually cut.
+
+**AUPRC** (precision-recall curve) — the one to reach for under heavy class imbalance.
+
+↪ **Important for medical AI:** AUROC can look impressively high (0.95+) on a rare-disease dataset even when the model is clinically weak, because the huge true-negative count flatters the FPR axis. AUPRC ignores true negatives entirely, so it stays honest when positives are rare. For screening tasks with low prevalence, report both.
+
+## Multi-class and multi-label — where DL flexes naturally
+
+Two output activations handle two different problem shapes cleanly:
+
+```
+softmax  → classes are mutually exclusive  (one answer)
+           "is this CXR: normal / pneumonia / effusion?"
+           probabilities sum to 1.0
+
+sigmoid  → labels independent (multi-label) (many answers)
+           "which findings present?" each label its own
+           0–1 probability, none competing
+```
+
+With many classes, a single precision/recall isn't enough — you compute per class, then **average**, and *how* you average is a real choice:
+
+```
+Macro    : average the per-class scores equally
+           → treats rare diseases as = important as common
+Weighted : average weighted by class frequency
+           → dominated by common classes
+Micro    : pool all TP/FP/FN first, then compute
+           → ≈ overall accuracy in multi-class
+```
+↪ Macro-averaging is usually the honest choice in medicine — it refuses to let a model "win" by acing common findings while failing rare ones.
+
+## Two genuinely DL-flavored metrics/ideas
+
+**Top-k accuracy** — counts a prediction correct if the true class is in the model's top *k* guesses. Born from large-class problems (ImageNet's 1000 classes uses top-5). Rare in classical tabular ML; common in DL.
+
+**Calibration** — this is the one I'd most want you to internalize, and it ties back to our last lesson. A model is *calibrated* if, among predictions it makes at 80% confidence, ~80% are actually correct:
+
+```
+observed │          ╱  ← perfectly calibrated
+accuracy │        ╱
+         │      ╱ ····  ← typical deep net:
+         │    ╱ ··        sits BELOW the line
+         │  ╱··             = overconfident
+         │╱·
+         └──────────────► predicted confidence
+```
+↪ **The interesting finding:** modern deep networks are systematically *overconfident* — and often *worse* calibrated than older, smaller models, despite being more accurate. That overconfidence is exactly the phenomenon behind "validation loss rises while accuracy stays flat" from the last lesson: the model keeps being right, but gets recklessly sure of itself, and loss punishes confident errors. Accuracy can't see this; calibration metrics (ECE — Expected Calibration Error, reliability diagrams) can. For clinical decision support, a miscalibrated 0.9 that doesn't *mean* 0.9 is dangerous, which is why calibration matters far more in medical DL than in a Kaggle leaderboard.
+
+---
+
+The summary: **classification metrics are classical-ML math, but DL reframes them around a movable post-training threshold (→ threshold-free metrics gain importance), handles multi-class/multi-label natively via softmax/sigmoid (→ averaging choices matter), and surfaces calibration as a first-class concern because deep nets are reliably overconfident.**

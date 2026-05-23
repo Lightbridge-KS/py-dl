@@ -130,6 +130,15 @@ book:
           href: "contents/pytorch/custom_image_dataset_arguments.qmd"
         - text: "SMP vs nnU-Net Input Requirements"
           href: "contents/pytorch/sam_nnunet_input_requirement.qmd"
+    - part: "Evaluation"
+      chapters: 
+        - text: "Overview"
+          href: "contents/eval/dl-evaluation-overview.qmd"
+        - text: "Loss Curve"
+          href: "contents/eval/loss-curve-intro.qmd"
+        - text: "Classification Metric"
+          href: "contents/eval/dl-classification-metric.qmd"
+
     - references.qmd
 
 
