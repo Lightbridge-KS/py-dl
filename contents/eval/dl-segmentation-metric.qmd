@@ -4,6 +4,22 @@ title: "Segmentation metrics"
 
 Segmentation is where deep learning genuinely departs from classical tabular ML — and it's your home turf. The elegant thing is that the metrics are *built* to handle the exact imbalance problem radiology lives with. Let me build it up.
 
+┌──────────────────────────────────────────────────────────────┐
+│ REGION / OVERLAP   "how much area do the masks share?"       │
+│   Dice (=F1), IoU (=Jaccard), accuracy, sensitivity, ...     │
+│   → counts pixels. Confusion-matrix based.                   │
+├──────────────────────────────────────────────────────────────┤
+│ BOUNDARY           "do the edges line up, in a thin band?"   │
+│   Boundary IoU, Boundary F1 (BF score), Normalized Surface   │
+│   Dice (NSD)                                                 │
+│   → counts pixels, but only near the contour.                │
+├──────────────────────────────────────────────────────────────┤
+│ DISTANCE / SURFACE "how far apart are the surfaces, in mm?"  │
+│   Hausdorff (HD), HD95, Average Symmetric Surface Distance   │
+│   (ASSD/ASD)                                                 │
+│   → measures geometric distance. NOT pixel-counting.         │
+└──────────────────────────────────────────────────────────────┘
+
 ## Reframe: segmentation is per-pixel classification
 
 A segmentation output is a **mask** — same dimensions as the image, every pixel assigned a label. The ground truth is also a mask. So you can lay them on top of each other and build a confusion matrix where *each pixel is a sample*:
@@ -13,7 +29,7 @@ A segmentation output is a **mask** — same dimensions as the image, every pixe
    ┌─────────┐          ┌─────────┐        ┌─────────┐
    │  ░░░    │          │  ░░     │        │  TT F   │   T = TP (hit)
    │ ░███░   │          │ ░███░░  │        │ TTTTTF  │   F = FP (false alarm)
-   │ ░███░   │    vs    │ ░██░░   │   ──►   │ TTTMM   │   M = FN (missed)
+   │ ░███░   │    vs    │ ░██░░   │   ──►  │ TTTMM   │   M = FN (missed)
    │  ░░░    │          │   ░     │        │  TFM    │   (rest = TN background)
    └─────────┘          └─────────┘        └─────────┘
 ```
@@ -78,9 +94,9 @@ Dice and IoU answer "how much do the regions overlap?" but are blind to *where* 
 ```
    Case A: compact miss            Case B: scattered boundary error
    ┌─────────┐                     ┌─────────┐
-   │ ███░░   │ solid core,         │ ░█░█░    │ right amount of
-   │ ███░░   │ clean edge          │ █░█░█    │ pixels but ragged,
-   │ ░░░░░   │                     │ ░█░█░    │ noisy boundary
+   │ ███░░   │ solid core,         │ ░█░█░   │ right amount of
+   │ ███░░   │ clean edge          │ █░█░█   │ pixels but ragged,
+   │ ░░░░░   │                     │ ░█░█░   │ noisy boundary
    └─────────┘                     └─────────┘
         same Dice, very different clinical meaning
 ```
