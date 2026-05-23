@@ -138,6 +138,8 @@ book:
           href: "contents/eval/loss-curve-intro.qmd"
         - text: "Classification Metric"
           href: "contents/eval/dl-classification-metric.qmd"
+        - text: "Segmentation Metric"
+          href: "contents/eval/dl-segmentation-metric.qmd"
 
     - references.qmd
 

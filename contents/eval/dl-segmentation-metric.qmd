@@ -1,0 +1,173 @@
+---
+title: "Segmentation metrics"
+---
+
+Segmentation is where deep learning genuinely departs from classical tabular ML — and it's your home turf. The elegant thing is that the metrics are *built* to handle the exact imbalance problem radiology lives with. Let me build it up.
+
+## Reframe: segmentation is per-pixel classification
+
+A segmentation output is a **mask** — same dimensions as the image, every pixel assigned a label. The ground truth is also a mask. So you can lay them on top of each other and build a confusion matrix where *each pixel is a sample*:
+
+```
+   GROUND TRUTH          PREDICTION         OVERLAY
+   ┌─────────┐          ┌─────────┐        ┌─────────┐
+   │  ░░░    │          │  ░░     │        │  TT F   │   T = TP (hit)
+   │ ░███░   │          │ ░███░░  │        │ TTTTTF  │   F = FP (false alarm)
+   │ ░███░   │    vs    │ ░██░░   │   ──►   │ TTTMM   │   M = FN (missed)
+   │  ░░░    │          │   ░     │        │  TFM    │   (rest = TN background)
+   └─────────┘          └─────────┘        └─────────┘
+```
+
+So in principle every classification metric applies pixel-wise. But two metrics dominate — Dice and IoU — and *why* they dominate is the whole lesson.
+
+## Why pixel accuracy fails (and fails worse than in classification)
+
+Picture a 512×512 CT slice: 262,144 pixels. A small lesion might be 200 pixels — **0.08%** of the image. A model that predicts "all background" scores:
+
+```
+pixel accuracy = 262,144 − 200  / 262,144  ≈  99.92%
+                 ▲ caught ZERO lesion, "99.9% accurate"
+```
+
+This is the accuracy trap from our classification lesson — but *far* more extreme, because in segmentation the background physically dominates the grid. The overwhelming majority of pixels are true negatives, and they drown everything. This single fact drives the design of every real segmentation metric.
+
+## Dice coefficient — the workhorse
+
+Dice measures **overlap** between the two masks:
+
+```
+              2 × |A ∩ B|              2·TP
+   Dice  =  ───────────────   =   ───────────────
+              |A| + |B|            2·TP + FP + FN
+```
+
+```
+   |A∩B| = the overlap (TP)
+   |A|   = predicted foreground       Dice = 1.0  perfect overlap
+   |B|   = true foreground            Dice = 0.0  no overlap
+```
+
+↪ **The key insight: notice what's missing — TN.** Dice has no true-negative term anywhere in it. The giant background that wrecked pixel accuracy simply *doesn't enter the formula*. That's why Dice survives radiology's extreme imbalance by construction.
+
+And it's not a new metric to you in disguise: **Dice is the F1 score computed at the pixel level** — the same `2PR/(P+R)` harmonic mean of precision and recall you just learned, applied to foreground pixels. The harmonic-mean property carries over too: you can't get a high Dice by acing precision while recall collapses.
+
+## IoU / Jaccard — Dice's stricter sibling
+
+```
+            |A ∩ B|             TP
+   IoU  =  ─────────  =  ─────────────────
+            |A ∪ B|        TP + FP + FN
+```
+
+IoU (also called the Jaccard index) also ignores TN. It relates to Dice by a fixed formula:
+
+```
+   Dice = 2·IoU / (1 + IoU)        IoU = Dice / (2 − Dice)
+
+   IoU   0.0   0.5    0.7    0.9   1.0
+   Dice  0.0   0.67   0.82   0.95  1.0
+                ▲ IoU is always ≤ Dice
+```
+
+They're **monotonically related** — they'll always rank two models the same way, so a model that beats another on Dice beats it on IoU too. The practical difference: IoU is *harsher* — it penalizes the same errors more heavily. Convention splits by field: medical imaging defaults to Dice, computer-vision/detection defaults to IoU.
+
+## Overlap isn't everything — boundary & distance metrics
+
+Dice and IoU answer "how much do the regions overlap?" but are blind to *where* and *what shape* the errors are. Two predictions can share an identical Dice yet be clinically very different:
+
+```
+   Case A: compact miss            Case B: scattered boundary error
+   ┌─────────┐                     ┌─────────┐
+   │ ███░░   │ solid core,         │ ░█░█░    │ right amount of
+   │ ███░░   │ clean edge          │ █░█░█    │ pixels but ragged,
+   │ ░░░░░   │                     │ ░█░█░    │ noisy boundary
+   └─────────┘                     └─────────┘
+        same Dice, very different clinical meaning
+```
+
+When boundary precision matters — tumor margins, organ-at-risk contours for radiotherapy planning — you add **distance-based** metrics that measure how far prediction boundaries stray from truth:
+
+```
+   Hausdorff Distance (HD):  the WORST-case boundary gap
+   ─────────────────────────────────────────────────────
+        truth boundary ●───────────────● 
+                       │   ↕ find each   │
+        pred boundary  ○   point's       ○
+                           nearest match,
+                           HD = the LARGEST such gap
+```
+
+The plain Hausdorff distance is the maximum boundary deviation — but one spurious far-flung pixel can blow it up, so practice uses **HD95** (the 95th percentile, robust to outliers) and **ASSD** (average symmetric surface distance — the *mean* boundary error, smoother and more stable). Rule of thumb: **overlap metrics (Dice/IoU) tell you if you found the right region; distance metrics (HD95/ASSD) tell you if you traced the right edge.** Report both when contour accuracy is clinical.
+
+↪ **A size-bias subtlety:** Dice is harder to achieve on *small* structures. The same few-pixel boundary error costs a large fraction of a tiny lesion's Dice but barely dents a big organ's. So Dice on small structures is both lower *and* noisier — important when you average across organs of wildly different size.
+
+## Binary → multi-class: per-class Dice, then averaging
+
+Binary segmentation (one foreground class — lesion vs not) computes Dice directly. Multi-class (multi-organ: liver, kidney, spleen, pancreas...) computes **Dice per class, then averages** — and *how* you average is the same dilemma from classification:
+
+```
+   per-class:  Dice_liver=0.95  Dice_kidney=0.90  Dice_pancreas=0.55
+                                                    ▲ small, hard organ
+
+   Mean Dice (macro): (0.95+0.90+0.55)/3 = 0.80
+       → every organ counts equally; the struggling pancreas is visible
+
+   Volume-weighted:   dominated by big organs
+       → 0.93, the pancreas failure is HIDDEN behind the big liver
+```
+
+↪ This is exactly the **macro vs weighted** averaging choice from the classification lesson — and macro (mean Dice) is again the honest default in medicine, because it refuses to let a model hide a failure on a small, clinically-critical structure behind easy big organs. Standard practice also **excludes the background class** from the mean, since including that near-perfect class inflates the score.
+
+## Class imbalance — the radiology core
+
+Step back and notice there are **two distinct imbalance axes**, handled by two different mechanisms:
+
+```
+   Axis 1: foreground vs background  (WITHIN a class)
+           tiny lesion in a sea of background
+           → handled by Dice/IoU IGNORING TN
+                                                    ┌── structural fixes
+   Axis 2: class vs class            (ACROSS classes)│   built into the
+           huge liver vs tiny pancreas              │   metrics themselves
+           → handled by MACRO averaging ────────────┘
+```
+
+That's the elegant part: segmentation metrics bake imbalance handling into their *structure*, rather than bolting it on afterward. But two practical traps remain, and both bite hard in radiology:
+
+**Aggregation across cases is a real choice.** When you have a whole dataset, do you (a) compute Dice per image then average those, or (b) pool all pixels across the dataset and compute one Dice? These give *different* numbers. Per-image averaging weights every patient equally; pooled aggregation weights big lesions more. Report which you used.
+
+**The empty-mask problem.** Many radiology slices contain *no* lesion at all — ground truth foreground is empty. Then Dice is `2·0 / (0+0) = 0/0`, undefined:
+
+```
+   GT empty, pred empty   → arguably PERFECT, but formula = 0/0
+   GT empty, pred has FPs → Dice = 0 (correct: false alarm on healthy tissue)
+```
+
+How you resolve the 0/0 case (treat as 1.0? exclude from the average?) can swing your reported mean Dice substantially when negative slices are common — which they almost always are in screening data. This is a frequent source of "why doesn't my number match the paper's" confusion.
+
+## Tie-back to loss: train soft, evaluate hard
+
+Finally, segmentation is the cleanest illustration of the **loss ≠ metric** split from lesson one. The Dice you *report* is computed on hard 0/1 masks — which is non-differentiable, useless for backprop. So you *train* on differentiable surrogates that use the raw probabilities:
+
+```
+   TRAIN with                          EVALUATE with
+   ──────────                          ─────────────
+   Soft Dice loss (probabilities)      Hard Dice (binary masks)
+   Cross-entropy
+   Tversky loss  ← tunable!            HD95, ASSD for boundaries
+   Combos (Dice + CE)
+```
+
+↪ **Tversky** is worth knowing because it directly addresses imbalance at the *loss* level: it generalizes Dice with knobs that weight false negatives vs false positives differently —
+
+```
+                  TP
+   Tversky = ──────────────────       Dice is the special case α=β=0.5
+              TP + α·FP + β·FN
+```
+
+Crank β up (penalize FN harder) and you bias the model toward catching every lesion at the cost of more false alarms — the recall-favoring trade-off that suits a screening task where a miss is worse than a false positive.
+
+---
+
+The summary: **segmentation = per-pixel classification, but Dice and IoU win precisely because they ignore the dominant true-negative background — imbalance handling is built into the metric.** Multi-class adds the same macro-vs-weighted averaging choice you saw in classification (mean Dice, background excluded). Overlap metrics check the region; distance metrics (HD95/ASSD) check the boundary. And the practical landmines — case aggregation and empty masks — are where radiology numbers most often go sideways.
